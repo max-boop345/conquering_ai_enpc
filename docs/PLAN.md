@@ -54,6 +54,29 @@ Statut : `[ ]` à faire, `[~]` en cours, `[x]` fait, `[!]` bloqué.
 - [ ] B07 : limite de coups / timeout par action (un LLM qui boucle ne bloque pas la partie).
 - [ ] B08 : tests — le solveur baseline termine toujours une partie ; `RuleSolver` gagne sur des grilles faciles seedées.
 
+### Phase R — Résolution classique (déterministe, sans LLM) (R01 → R16)
+
+Objectif de cette phase : le meilleur solveur « classique » possible, entièrement local et
+explicable, qui servira (i) d'étalon dur pour le solveur LLM et (ii) de base de connaissances
+que le LLM pourra consulter / réutiliser. Toutes les techniques sont déterministes et testables.
+
+- [ ] R01 : noyau d'analyse — extraire de la vue joueur la liste des contraintes `(ensemble de cases frontière, nombre de mines)`.
+- [ ] R02 : règle single-point — contrainte satisfaite → ses cases restantes sont sûres ; contrainte avec autant de cases que de mines → toutes des mines.
+- [ ] R03 : règle subset — si C1 ⊆ C2 alors C2−C1 hérite de `mines(C2)−mines(C1)` (généralise les motifs 1-2-1, 1-2-2-1).
+- [ ] R04 : intersection croisée — si les cases restantes d'une contrainte sont déjà toutes des mines (via drapeaux), en déduire les révélations sûres ailleurs.
+- [ ] R05 : énumération CSP — partitionner les contraintes en composantes connexes indépendantes, énumérer les solutions valides par composante (plafond de taille).
+- [ ] R06 : classification CSP — pour chaque case : toujours-mine / jamais-mine / incertaine (à partir de l'énumération R05).
+- [ ] R07 : comptage exact global — combinatoire sur toutes les composantes + cases inconnues hors frontière → probabilité exacte d'être une mine pour chaque case.
+- [ ] R08 : choix du coup sûr — révéler en priorité une case jamais-mine (R06) ; sinon poser un drapeau sur une toujours-mine utile.
+- [ ] R09 : heuristique de guess — en cas d'incertitude totale : minimiser la probabilité de mine (R07), départager par nombre de voisins révélés, coin/bord en dernier recours.
+- [ ] R10 : résolution complète — boucle moteur : analyser → jouer → jusqu'à victoire/défaite/limite de coups (B07).
+- [ ] R11 : explicabilité — chaque décision émet une justification textuelle courte (`"R03: subset → (2,3) sûr"`), réutilisable comme few-shot pour le LLM (C04).
+- [ ] R12 : détection de configuration impossible — si le CSP n'a aucune solution, signaler un bug moteur ou une vue corrompue (fail-fast, utile pour D02).
+- [ ] R13 : tests — grilles seedées couvrant chaque règle (une fixture par règle, y compris cas 1-2-1 et devinette forcée).
+- [ ] R14 : benchmark — win-rate sur N seeds par difficulté, comparé à RandomSolver et RuleSolver (B05, B06) ; résultats dans `docs/benchmarks.md`.
+- [ ] R15 : commandes CLI — `demineur solve --seed X --method classic` + `--explain` pour afficher les justifications (R11).
+- [ ] R16 : documentation — `docs/classic_solver.md` : chaque règle, sa preuve, ses cas limites.
+
 ### Phase C — Solveur LLM (C01 → C12)
 
 - [ ] C01 : abstraction backend — `LLMBackend.complete(prompt) -> str` (aucun provider imposé).
@@ -116,6 +139,7 @@ Statut : `[ ]` à faire, `[~]` en cours, `[x]` fait, `[!]` bloqué.
 | Date | Tâche | Résumé |
 |------|-------|--------|
 | session 1 | G01 | Création de ce plan fragmenté (A→G, 60+ micro-tâches) et du graphe de dépendances lisible par LLM. Aucune ligne de moteur encore écrite. |
+| session 1 | G01 | Ajout de la phase R « Résolution classique » (R01→R16) : contraintes, règles single-point/subset, CSP, probabilités exactes, heuristique de guess, explicabilité, CLI et benchmark. Le graphe (§5) intègre les 16 nouveaux nœuds. |
 
 Règle de mise à jour : chaque tâche terminée ajoute une ligne ici et passe à `[x]` dans sa phase.
 
@@ -129,6 +153,8 @@ Règle de mise à jour : chaque tâche terminée ajoute une ligne ici et passe �
 | Backend LLM | API distante / modèle local / hybride | interface unique `LLMBackend` (C01) | local-first sans bloquer l'usage d'une API ; tests via mock |
 | Anti-fuite d'info | solver voit la grille complète vs vue joueur | vue joueur uniquement (B01) | le LLM doit raisonner comme un joueur, sinon les résultats sont faussés |
 | Étalon | aucun / RandomSolver / RuleSolver | les deux (B05, B06) | mesure honnête de l'apport du LLM |
+| Résolution classique | solveur LLM seul vs solveur déterministe complet en parallèle | phase R dédiée (R01→R16) | étalon dur explicable ; ses justifications (R11) servent de few-shot au LLM (C04) et mesurent honnêtement son apport (C10) |
+| Guess en incertitude | aléatoire vs minimisation de probabilité exacte | probabilités combinatoires (R07, R09) | réduit les défaites évitables, benchmark reproductible |
 | Auto-résolution | patch auto direct vs dry-run + garde-fous | dry-run + tests intouchables + budget (D07-D09) | éviter que le LLM "triche" en modifiant les tests |
 | Apprentissage | fine-tuning vs mémoire de leçons en prompt | leçons versionnées + promotion mesurée (E03, E05) | fine-tuning lourd et peu auditable ; leçons lisibles et traçables |
 
@@ -163,6 +189,33 @@ A11 -> A13        [depends_on]
 A12 -> A13        [depends_on]
 A13 -> A14        [depends_on]
 A14 -> B01        [uses]
+B01 -> R01        [uses]
+B04 -> R01        [uses]
+R01 -> R02        [depends_on]
+R01 -> R03        [depends_on]
+R02 -> R04        [depends_on]
+R03 -> R04        [depends_on]
+R01 -> R05        [depends_on]
+R02 -> R05        [depends_on]
+R05 -> R06        [depends_on]
+R05 -> R07        [depends_on]
+R06 -> R08        [depends_on]
+R07 -> R09        [depends_on]
+B07 -> R10        [depends_on]
+R08 -> R10        [depends_on]
+R09 -> R10        [depends_on]
+R02 -> R11        [depends_on]
+R03 -> R11        [depends_on]
+R06 -> R11        [depends_on]
+R05 -> R12        [depends_on]
+R13 -> R14        [depends_on]
+R10 -> R14        [depends_on]
+R10 -> R15        [depends_on]
+R11 -> R15        [depends_on]
+R11 -> C04        [uses]
+R14 -> C10        [measures]
+R14 -> G03        [depends_on]
+R16 -> G04        [depends_on]
 B01 -> B02        [depends_on]
 B01 -> B03        [depends_on]
 B02 -> B04        [depends_on]
@@ -249,6 +302,22 @@ B06  | B | code    | RuleSolver deterministe (etalon)
 B07  | B | code    | limites de coups / timeout
 B08  | B | test    | tests des solveurs etalons
 C01  | C | code    | abstraction LLMBackend
+R01  | R | code    | extraction des contraintes depuis la vue joueur
+R02  | R | rule    | regle single-point
+R03  | R | rule    | regle subset (1-2-1, 1-2-2-1)
+R04  | R | rule    | intersection croisee
+R05  | R | code    | enumeration CSP par composante
+R06  | R | code    | classification toujours-mine / jamais-mine
+R07  | R | code    | probabilites exactes par combinatoire
+R08  | R | code    | choix du coup sur
+R09  | R | code    | heuristique de devinette optimale
+R10  | R | code    | boucle de resolution complete
+R11  | R | code    | justifications textuelles par coup
+R12  | R | code    | detection de configuration impossible
+R13  | R | test    | fixtures par regle (grilles seedees)
+R14  | R | bench   | benchmark du solveur classique
+R15  | R | cli     | commande solve --method classic --explain
+R16  | R | doc     | doc des regles classiques
 C02  | C | code    | backend API distante optionnelle
 C03  | C | code    | backend modele local
 C04  | C | prompt  | prompt systeme v1 (regles + JSON strict)
@@ -304,7 +373,9 @@ Vue Mermaid équivalente (phases uniquement, pour lecture humaine) :
 ```mermaid
 graph LR
   A[A Moteur] --> B[B Interface solveur]
+  B --> R[R Résolution classique]
   B --> C[C Solveur LLM]
+  R --> C
   A --> D[D Auto-résolution]
   C --> E[E Apprentissage]
   B --> F[F Interface locale]
@@ -318,9 +389,10 @@ graph LR
 ## 6. Ordre de mise en œuvre recommandé
 
 1. A01 → A14 (moteur vert, testé) — prérequis de tout le reste.
-2. B01 → B08 (contrat solveur + étalons) — permet de mesurer avant d'ajouter le LLM.
-3. C01 → C12 (solveur LLM) — cœur du concept vidéo.
-4. D01 → D10 (auto-résolution) — le LLM corrige ses propres erreurs.
-5. E01 → E09 (apprentissage) — la boucle long terme.
-6. F01 → F07 (interface) — confort d'usage local.
-7. G02 → G04 (docs) — en continu, dès que D, C, E produisent des données.
+2. B01 → B08 (contrat solveur + étalons simples) — permet de mesurer avant d'ajouter le LLM.
+3. R01 → R16 (résolution classique) — étalon dur déterministe ; ses justifications servent ensuite de few-shot au LLM.
+4. C01 → C12 (solveur LLM) — cœur du concept vidéo.
+5. D01 → D10 (auto-résolution) — le LLM corrige ses propres erreurs.
+6. E01 → E09 (apprentissage) — la boucle long terme.
+7. F01 → F07 (interface) — confort d'usage local.
+8. G02 → G04 (docs) — en continu, dès que D, C, R, E produisent des données.
