@@ -94,6 +94,14 @@ def cmd_benchmark(argv) -> int:
         with open(argv.save, "w", encoding="utf-8") as f:
             f.write(table)
         print(f"résultats sauvegardés dans {argv.save}")
+    if argv.json:
+        import json
+        import os
+        chemin = argv.json
+        os.makedirs(os.path.dirname(chemin) or ".", exist_ok=True)
+        with open(chemin, "w", encoding="utf-8") as f:
+            json.dump(benchmark_to_json(résultats), f, ensure_ascii=False, indent=2)
+        print(f"artefact JSON sauvegardé dans {chemin} (consommé par demineur serve)")
     return 0
 
 
@@ -162,6 +170,8 @@ def _parser() -> argparse.ArgumentParser:
     p_bench.add_argument("--seeds", type=int, default=50)
     p_bench.add_argument("--solvers", default="random,rule,classic")
     p_bench.add_argument("--save", default=None, help="sauvegarder la table Markdown")
+    p_bench.add_argument("--json", default=None,
+                         help="sauvegarder l'artefact JSON (ex: games/benchmarks.json)")
     p_bench.set_defaults(fn=cmd_benchmark)
 
     p_serve = sub.add_parser("serve", help="lancer le site local de visualisation (W17)")

@@ -1,0 +1,187 @@
+/* Démineur local — styles (assets 100% locaux, W19) */
+
+:root {
+  --fond: #14161c;
+  --panneau: #1d2028;
+  --bord: #2c313d;
+  --texte: #e8e6e3;
+  --accent: #7aa2f7;
+  --sûr: #9ece6a;
+  --mine: #f7768e;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  background: var(--fond);
+  color: var(--texte);
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 0.8rem 1.5rem;
+  background: var(--panneau);
+  border-bottom: 1px solid var(--bord);
+}
+
+header h1 { font-size: 1.1rem; margin: 0; }
+
+nav { display: flex; gap: 0.4rem; }
+
+.tab {
+  background: transparent;
+  color: var(--texte);
+  border: 1px solid var(--bord);
+  border-radius: 6px;
+  padding: 0.4rem 0.9rem;
+  cursor: pointer;
+}
+
+.tab.actif { background: var(--accent); color: var(--fond); border-color: var(--accent); }
+
+main { padding: 1.5rem; }
+
+.panneau { display: none; }
+.panneau.actif { display: block; }
+
+#replay { display: none; }
+#replay.actif { display: flex; gap: 2rem; }
+
+aside { min-width: 240px; }
+
+#liste-parties { list-style: none; padding: 0; margin: 0; }
+#liste-parties li {
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--bord);
+  border-radius: 6px;
+  margin-bottom: 0.4rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+#liste-parties li:hover { border-color: var(--accent); }
+#liste-parties li.sélectionné { border-color: var(--accent); background: #232838; }
+
+.grille {
+  display: grid;
+  gap: 2px;
+  background: var(--bord);
+  padding: 4px;
+  border-radius: 4px;
+  width: fit-content;
+}
+
+.case {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 0.9rem;
+  border-radius: 3px;
+  user-select: none;
+}
+
+.case.cachée { background: #3a4050; color: var(--texte); }
+.case.cachée.sure { background: var(--sûr); color: var(--fond); }
+.case.drapeau { background: #b4782f; color: var(--fond); }
+.case.révélée { background: #262b36; color: var(--texte); }
+.case.minée { background: var(--mine); color: var(--fond); }
+
+.case.n1 { color: #7aa2f7; }
+.case.n2 { color: #9ece6a; }
+.case.n3 { color: #f7768e; }
+.case.n4 { color: #bb9af7; }
+.case.n5 { color: #e0af68; }
+.case.n6 { color: #7dcfff; }
+.case.n7 { color: #ff9e64; }
+.case.n8 { color: #a9b1d6; }
+
+/* heatmap (W08) : opacité proportionnelle à la probabilité de mine */
+.case.chauffe::after {
+  content: "";
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--mine);
+}
+.case { position: relative; }
+
+/* composante CSP (W09) */
+.case.csp { outline: 2px solid var(--accent); }
+.case.mine-déduite { outline: 2px solid var(--mine); }
+
+.grille.interactive .case { cursor: pointer; }
+
+.justification {
+  min-height: 2.2rem;
+  padding: 0.5rem 0.8rem;
+  margin-bottom: 0.8rem;
+  background: var(--panneau);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 0.85rem;
+  max-width: 48rem;
+}
+
+.controles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.8rem 0;
+}
+
+button {
+  background: var(--accent);
+  color: var(--fond);
+  border: none;
+  border-radius: 6px;
+  padding: 0.45rem 0.9rem;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+button:hover { filter: brightness(1.1); }
+
+input[type="number"] { width: 4.5rem; }
+input {
+  background: var(--panneau);
+  color: var(--texte);
+  border: 1px solid var(--bord);
+  border-radius: 4px;
+  padding: 0.3rem;
+}
+
+.cache { display: none !important; }
+
+.ligne { display: flex; gap: 3rem; flex-wrap: wrap; }
+
+h3 { margin-bottom: 0.5rem; }
+
+table {
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+th, td {
+  border: 1px solid var(--bord);
+  padding: 0.4rem 0.8rem;
+  text-align: left;
+}
+
+.aide { color: #9aa0b0; }
+
+footer {
+  margin-top: 2rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--bord);
+  color: #9aa0b0;
+  font-size: 0.8rem;
+}

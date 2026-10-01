@@ -1,0 +1,330 @@
+"""Serveur web local (W01, W02, W13, W14, W16, W17).
+
+- écoute sur 127.0.0.1 uniquement (W16, INV5) — jamais 0.0.0.0 ;
+- sert les fichiers statiques de ``web/`` (W04) sans échapper au répertoire ;
+- API JSON locale (W02) alimentée par les artefacts (JSONL B10, benchmarks R14) ;
+- mode live (W13) et mode duel (W14) en mémoire, polling local uniquement.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import posixpath
+import re
+import threading
+import urllib.parse
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+from demineur.artifacts import list_games, load_game
+from demineur.game import Game, GameState
+from demineur.runner import GameRunner, MoveEvent
+from demineur.solvers.classic import ClassicSolver
+from demineur.view import view_from_json
+
+_HOST = "127.0.0.1"  # W16 : localhost uniquement, non configurable (INV5)
+_TYPES = {
+    ".html": "text/html; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".js": "application/javascript; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+}
+
+
+class LiveState:
+    """Une partie en direct pilotée par le solveur classique (W13)."""
+
+    def __init__(self, seed, width, height, mines):
+        self.game = Game(width, height, mines, seed=seed)
+        self.runner = GameRunner(self.game)
+        self.solver = ClassicSolver()
+        self.seed = seed
+        self.last_event = None
+
+    def step(self):
+        """Le solveur joue un coup ; retourne le dernier événement."""
+        if self.game.state is not GameState.PLAYING or self.runner.gave_up:
+            return self.last_event
+        vue = self.game.view()
+        action = self.solver.decide(vue)
+        event = self.runner.apply(action, self.solver.last_justification)
+        self.last_event = event
+        return event
+
+
+class DuelState:
+    """Humain vs solveur sur la même grille seedée (W14)."""
+
+    def __init__(self, seed, width, height, mines):
+        self.human = Game(width, height, mines, seed=seed)
+        self.solver_game = Game(width, height, mines, seed=seed)
+        self.solver = ClassicSolver()
+        self.seed = seed
+
+    def human_play(self, action: dict):
+        """Applique le coup humain, puis un coup du solveur."""
+        kind = action.get("kind")
+        try:
+            if kind == "reveal":
+                self.human.reveal(int(action["x"]), int(action["y"]))
+            elif kind == "flag":
+                self.human.flag(int(action["x"]), int(action["y"]))
+            elif kind == "unflag":
+                self.human.unflag(int(action["x"]), int(action["y"]))
+            else:
+                raise ValueError(f"kind inconnu: {kind!r}")
+        except (ValueError, KeyError, TypeError) as err:
+            raise ValueError(str(err))
+        self._solver_step()
+        return {"human": self.human.view().to_json(),
+                "solver": self.solver_game.view().to_json(),
+                "human_state": self.human.state.value,
+                "solver_state": self.solver_game.state.value}
+
+    def _solver_step(self):
+        if self.solver_game.state is not GameState.PLAYING:
+            return
+        action = self.solver.decide(self.solver_game.view())
+        try:
+            if type(action).__name__ == "Reveal":
+                self.solver_game.reveal(action.x, action.y)
+            elif type(action).__name__ == "Flag":
+                self.solver_game.flag(action.x, action.y)
+            elif type(action).__name__ == "Unflag":
+                self.solver_game.unflag(action.x, action.y)
+        except ValueError:
+            pass  # coup illégal: le duel continue, jamais de blocage
+
+
+def make_handler(games_dir: str, web_dir: str):
+    état = {"live": None, "duel": None}
+
+    class Handler(BaseHTTPRequestHandler):
+        server_version = "DemineurLocal/1.0"
+
+        def log_message(self, *args):  # silence en usage normal
+            pass
+
+        # ---------------------------------------------------- utilitaires
+        def _json(self, data, code=200):
+            corps = json.dumps(data, ensure_ascii=False).encode()
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(corps)))
+            self.end_headers()
+            self.wfile.write(corps)
+
+        def _fichier(self, chemin_rel: str):
+            """Sert un fichier statique de web/ (aucune traversée possible, W16)."""
+            chemin_rel = posixpath.normpath(urllib.parse.unquote(chemin_rel))
+            if chemin_rel.startswith("/") :
+                chemin_rel = chemin_rel[1:]
+            if ".." in chemin_rel.split("/"):
+                self._json({"error": "chemin refusé"}, 403)
+                return
+            if chemin_rel in ("", "."):
+                chemin_rel = "index.html"
+            chemin = os.path.join(web_dir, chemin_rel)
+            if not os.path.isfile(chemin):
+                self._json({"error": "introuvable"}, 404)
+                return
+            with open(chemin, "rb") as f:
+                corps = f.read()
+            ext = os.path.splitext(chemin)[1]
+            self.send_response(200)
+            self.send_header("Content-Type", _TYPES.get(ext, "application/octet-stream"))
+            self.send_header("Content-Length", str(len(corps)))
+            self.end_headers()
+            self.wfile.write(corps)
+
+        def _paramètres(self, query: str) -> dict:
+            return {k: v[0] for k, v in urllib.parse.parse_qs(query).items()}
+
+        # ---------------------------------------------------- GET
+        def do_GET(self):
+            parsed = urllib.parse.urlparse(self.path)
+            chemin, query = parsed.path, parsed.query
+            p = self._paramètres(query)
+            try:
+                if chemin.startswith("/api/"):
+                    return self._api_get(chemin, p)
+                return self._fichier(chemin)
+            except Exception as err:  # jamais de crash serveur
+                self._json({"error": str(err)}, 500)
+
+        def do_POST(self):
+            parsed = urllib.parse.urlparse(self.path)
+            try:
+                longueur = int(self.headers.get("Content-Length", 0))
+                corps = self.rfile.read(longueur) if longueur else b"{}"
+                data = json.loads(corps)
+                if not isinstance(data, dict):
+                    raise ValueError("objet JSON attendu")
+            except (ValueError, json.JSONDecodeError):
+                return self._json({"error": "JSON invalide"}, 400)
+            if parsed.path == "/api/duel/human":
+                duel = état["duel"]
+                if duel is None:
+                    return self._json({"error": "aucun duel en cours"}, 400)
+                try:
+                    résultat = duel.human_play(data)
+                except ValueError as err:
+                    return self._json({"error": str(err)}, 400)
+                return self._json(résultat)
+            return self._json({"error": "route inconnue"}, 404)
+
+        # ---------------------------------------------------- API
+        def _api_get(self, chemin: str, p: dict):
+            if chemin == "/api/solvers":
+                return self._json({"solvers": ["random", "rule", "classic"]})
+
+            if chemin == "/api/games":
+                parties = [
+                    {
+                        "id": g["id"],
+                        "seed": g["header"].get("seed"),
+                        "solver": g["header"].get("solver"),
+                        "difficulty": g["header"].get("difficulty"),
+                        "width": g["header"].get("width"),
+                        "height": g["header"].get("height"),
+                        "mines": g["header"].get("mines"),
+                        "moves": g["header"].get("moves", 0),
+                    }
+                    for g in list_games(games_dir)
+                ]
+                return self._json({"games": parties})
+
+            m = re.fullmatch(r"/api/games/([^/]+)", chemin)
+            if m:
+                return self._partie(m.group(1))
+
+            m = re.fullmatch(r"/api/games/([^/]+)/analysis/(\d+)", chemin)
+            if m:
+                return self._analyse(m.group(1), int(m.group(2)))
+
+            if chemin == "/api/benchmarks":
+                chemin_bench = os.path.join(games_dir, "benchmarks.json")
+                if os.path.isfile(chemin_bench):
+                    with open(chemin_bench, encoding="utf-8") as f:
+                        data = json.load(f)
+                    return self._json(data)
+                return self._json({"version": 1, "kind": "benchmark", "results": {}})
+
+            if chemin == "/api/live/new":
+                état["live"] = LiveState(
+                    seed=int(p.get("seed", 0)),
+                    width=int(p.get("w", 9)), height=int(p.get("h", 9)),
+                    mines=int(p.get("mines", 10)))
+                live = état["live"]
+                return self._json({"state": live.game.state.value,
+                                   "view": live.game.view().to_json()})
+
+            if chemin == "/api/live/state":
+                live = état["live"]
+                if live is None:
+                    return self._json({"error": "aucune partie live"}, 404)
+                return self._json({"state": live.game.state.value,
+                                   "view": live.game.view().to_json(),
+                                   "moves": len(live.runner.events)})
+
+            if chemin == "/api/live/step":
+                live = état["live"]
+                if live is None:
+                    return self._json({"error": "aucune partie live"}, 404)
+                event = live.step()
+                view = live.game.view().to_json()
+                return self._json({
+                    "state": live.game.state.value,
+                    "view": view,
+                    "moves": len(live.runner.events),
+                    "event": event.to_json() if event else None,
+                })
+
+            if chemin == "/api/duel/new":
+                état["duel"] = DuelState(
+                    seed=int(p.get("seed", 0)),
+                    width=int(p.get("w", 9)), height=int(p.get("h", 9)),
+                    mines=int(p.get("mines", 10)))
+                duel = état["duel"]
+                return self._json({"human": duel.human.view().to_json(),
+                                   "solver": duel.solver_game.view().to_json(),
+                                   "human_state": duel.human.state.value,
+                                   "solver_state": duel.solver_game.state.value})
+
+            return self._json({"error": "route inconnue"}, 404)
+
+        def _partie(self, identifiant: str):
+            for g in list_games(games_dir):
+                if g["id"] == identifiant:
+                    header, events, result = load_game(g["path"])
+                    return self._json({
+                        "header": header, "events": events, "result": result})
+            return self._json({"error": "partie inconnue"}, 404)
+
+        def _analyse(self, identifiant: str, coup: int):
+            from demineur.solvers.classic import analyze
+
+            for g in list_games(games_dir):
+                if g["id"] == identifiant:
+                    _, events, _ = load_game(g["path"])
+                    if not 0 <= coup < len(events):
+                        return self._json({"error": "coup hors bornes"}, 404)
+                    vue = view_from_json(events[coup]["view_before"])
+                    a = analyze(vue)
+                    return self._json({
+                        "move": coup,
+                        "probabilities": {f"{x},{y}": p
+                                         for (x, y), p in a.probabilities.items()},
+                        "safe": sorted(a.safe),
+                        "mines": sorted(a.mines),
+                        "components": a.components,
+                        "exact": a.exact,
+                    })
+            return self._json({"error": "partie inconnue"}, 404)
+
+    return Handler
+
+
+def make_server(games_dir: str, port: int = 8765, web_dir: str | None = None) -> ThreadingHTTPServer:
+    """Crée le serveur (W01). Bind 127.0.0.1 forcé (W16, INV5)."""
+    if web_dir is None:
+        web_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                               "..", "web")
+        web_dir = os.path.normpath(web_dir)
+    handler = make_handler(games_dir, web_dir)
+    serveur = ThreadingHTTPServer((_HOST, port), handler)
+    serveur.daemon_threads = True
+    return serveur
+
+
+def main(argv=None) -> int:
+    """``demineur serve [--port] [--open] [--games-dir]`` (W17)."""
+    import argparse
+
+    parser = argparse.ArgumentParser(prog="demineur serve",
+                                     description="Site local de visualisation")
+    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--open", action="store_true")
+    parser.add_argument("--games-dir", default="games")
+    if argv is not None and hasattr(argv, "port"):
+        args = argv  # déjà un Namespace (appel depuis demineur.cli)
+    else:
+        args = parser.parse_args(argv if isinstance(argv, list) else None)
+    serveur = make_server(games_dir=args.games_dir, port=args.port)
+    host, port = serveur.server_address[:2]
+    url = f"http://{host}:{port}/"
+    print(f"serveur local: {url} (CTRL+C pour arrêter)")
+    if args.open:
+        import webbrowser
+        webbrowser.open(url)
+    try:
+        serveur.serve_forever()
+    except KeyboardInterrupt:
+        print("arrêt du serveur")
+    finally:
+        serveur.server_close()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

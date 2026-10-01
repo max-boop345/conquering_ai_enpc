@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Démineur local — visualisation</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>Démineur local</h1>
+  <nav>
+    <button class="tab actif" data-tab="replay">Replay</button>
+    <button class="tab" data-tab="benchmarks">Benchmarks</button>
+    <button class="tab" data-tab="live">Live</button>
+    <button class="tab" data-tab="duel">Duel</button>
+  </nav>
+</header>
+
+<main>
+  <!-- ============ Replay (W05, W06, W07, W08, W09) ============ -->
+  <section id="replay" class="panneau actif">
+    <aside>
+      <h2>Parties loggées</h2>
+      <ul id="liste-parties"></ul>
+    </aside>
+    <div id="replay-contenu">
+      <p class="aide">Choisissez une partie à rejouer coup par coup.</p>
+      <div id="replay-grille-wrap">
+        <div id="justification" class="justification"></div>
+        <div id="grille-replay" class="grille"></div>
+      </div>
+      <div id="replay-controles" class="controles cache">
+        <button id="btn-premier">⏮</button>
+        <button id="btn-prec">◀</button>
+        <button id="btn-suiv">▶</button>
+        <button id="btn-dernier">⏭</button>
+        <button id="btn-fatal">coup fatal</button>
+        <label>vitesse <input id="vitesse" type="range" min="0" max="10" value="4"></label>
+        <button id="btn-auto">lecture auto</button>
+        <span id="compteur-coups"></span>
+      </div>
+      <div id="replay-options" class="controles cache">
+        <label><input type="checkbox" id="opt-heatmap"> heatmap des probabilités (W08)</label>
+        <label><input type="checkbox" id="opt-csp"> surligner la composante CSP (W09)</label>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Benchmarks (W10) ============ -->
+  <section id="benchmarks" class="panneau">
+    <h2>Benchmarks — win-rate par solveur</h2>
+    <table id="table-benchmarks"></table>
+    <canvas id="chart-benchmarks" width="640" height="280"></canvas>
+  </section>
+
+  <!-- ============ Live (W13) ============ -->
+  <section id="live" class="panneau">
+    <h2>Partie en direct — solveur classique</h2>
+    <div class="controles">
+      <label>seed <input id="live-seed" type="number" value="42"></label>
+      <label>largeur <input id="live-w" type="number" value="9" min="2" max="40"></label>
+      <label>hauteur <input id="live-h" type="number" value="9" min="2" max="30"></label>
+      <label>mines <input id="live-mines" type="number" value="10" min="1"></label>
+      <button id="btn-live-new">nouvelle partie</button>
+      <button id="btn-live-step">un coup</button>
+      <button id="btn-live-auto">lecture auto</button>
+      <span id="live-etat"></span>
+    </div>
+    <div class="ligne">
+      <div>
+        <h3>Plateau</h3>
+        <div id="grille-live" class="grille"></div>
+      </div>
+      <div>
+        <h3>Dernier coup du solveur</h3>
+        <div id="live-justification" class="justification"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Duel (W14) ============ -->
+  <section id="duel" class="panneau">
+    <h2>Duel — vous contre le solveur (même seed)</h2>
+    <div class="controles">
+      <label>seed <input id="duel-seed" type="number" value="7"></label>
+      <label>largeur <input id="duel-w" type="number" value="9" min="2" max="40"></label>
+      <label>hauteur <input id="duel-h" type="number" value="9" min="2" max="30"></label>
+      <label>mines <input id="duel-mines" type="number" value="10" min="1"></label>
+      <button id="btn-duel-new">nouveau duel</button>
+      <span id="duel-etat"></span>
+    </div>
+    <p class="aide">Clic gauche : révéler. Clic droit : drapeau.</p>
+    <div class="ligne">
+      <div>
+        <h3>Votre plateau</h3>
+        <div id="grille-duel-humain" class="grille interactive"></div>
+      </div>
+      <div>
+        <h3>Solveur classique</h3>
+        <div id="grille-duel-solveur" class="grille"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <p>100% local — aucune ressource distante. Serveur limité à 127.0.0.1.</p>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
