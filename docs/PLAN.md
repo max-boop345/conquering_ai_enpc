@@ -117,6 +117,31 @@ que le LLM pourra consulter / réutiliser. Toutes les techniques sont détermini
 - [ ] E08 : limite de contexte — la mémoire injectée est compactée (top-K leçons les plus utiles).
 - [ ] E09 : tests — parties avec mémoire simulée (mock) : vérifier l'injection et la promotion des leçons.
 
+### Phase W — Site web de visualisation (local, localhost uniquement) (W01 → W18)
+
+Objectif : visualiser dans un navigateur, en local, les parties, les décisions des solveurs
+classique et LLM, les benchmarks et la mémoire de leçons. Aucun déploiement distant : le site
+est servi par un petit serveur local qui lit les artefacts (logs JSONL, mémoires, benchmarks).
+
+- [ ] W01 : socle serveur local — petit serveur HTTP (stdlib `http.server` ou framework léger déjà présent) qui sert `web/` sur `127.0.0.1` uniquement (rappeler INV5).
+- [ ] W02 : API JSON locale — endpoints `/api/games`, `/api/games/{id}`, `/api/solvers`, `/api/benchmarks`, `/api/lessons` alimentés par les artefacts (E01, C09, C10, E03).
+- [ ] W03 : contrat de données — schéma JSON stable partagé CLI ↔ API ↔ frontend (versionné, rétro-compatible).
+- [ ] W04 : structure frontend — `web/` statique (HTML/CSS/JS sans build lourd) ; pas de bundler obligatoire.
+- [ ] W05 : composant grille — rendu du plateau de démineur (cases, drapeaux, compteurs) depuis un état JSON.
+- [ ] W06 : replay interactif — rejouer une partie loggée coup par coup (boutons ◀ ▶, vitesse, saut au coup fatal).
+- [ ] W07 : surcouche décisions — afficher par coup la justification du solveur (R11) ou la réponse LLM brute (C06) à côté de la grille.
+- [ ] W08 : visualisation des probabilités — heatmap des probabilités de mines (R07) sur la grille pendant le replay.
+- [ ] W09 : visualisation des contraintes — surligner la composante CSP active (R05) et les cases sûres/dangereuses (R06) par coup.
+- [ ] W10 : vue benchmarks — tableaux + graphes (win-rate par solveur × difficulté, C10/R14) en JS pur ou lib de chart légère si justifiée.
+- [ ] W11 : vue mémoire — navigateur de leçons (E03) : liste, statut (candidate/promue/obsolète), impact win-rate mesuré (E05).
+- [ ] W12 : vue journal auto-résolution — timeline des correctifs LLM (D05) : échec → diagnostic → patch → résultat.
+- [ ] W13 : mode live — page qui joue une partie en direct (solver classique ou LLM) avec rafraîchissement du plateau via polling local.
+- [ ] W14 : mode duel web — l'humain joue une partie dans le navigateur, le LLM ou le solver classique joue la même grille seedée en parallèle (F03, web).
+- [ ] W15 : tests — tests d'API (endpoints, codes d'erreur, isolation localhost) ; tests frontend basiques (rendu grille depuis un JSON de fixture).
+- [ ] W16 : sécurité locale — bindings `127.0.0.1` vérifiés, aucune écriture serveur hors répertoire de travail, pas de secret exposé (INV4, INV5).
+- [ ] W17 : intégration CLI — `demineur serve` lance le site ; `demineur serve --open` ouvre le navigateur local.
+- [ ] W18 : documentation — `docs/web.md` : architecture, endpoints, format de replay, limites (local uniquement).
+
 ### Phase F — Interface locale (F01 → F07)
 
 - [ ] F01 : CLI complète — `demineur new|play|run-llm|benchmark|autofix` avec `--seed`, `--difficulty`.
@@ -140,6 +165,7 @@ que le LLM pourra consulter / réutiliser. Toutes les techniques sont détermini
 |------|-------|--------|
 | session 1 | G01 | Création de ce plan fragmenté (A→G, 60+ micro-tâches) et du graphe de dépendances lisible par LLM. Aucune ligne de moteur encore écrite. |
 | session 1 | G01 | Ajout de la phase R « Résolution classique » (R01→R16) : contraintes, règles single-point/subset, CSP, probabilités exactes, heuristique de guess, explicabilité, CLI et benchmark. Le graphe (§5) intègre les 16 nouveaux nœuds. |
+| session 1 | G01 | Ajout de la phase W « Site web de visualisation » (W01→W18) : serveur local 127.0.0.1, API JSON, replay interactif, heatmaps de probabilités, vues benchmarks/leçons/auto-résolution, mode live et duel. Le graphe (§5) intègre les 18 nouveaux nœuds. |
 
 Règle de mise à jour : chaque tâche terminée ajoute une ligne ici et passe à `[x]` dans sa phase.
 
@@ -155,6 +181,8 @@ Règle de mise à jour : chaque tâche terminée ajoute une ligne ici et passe �
 | Étalon | aucun / RandomSolver / RuleSolver | les deux (B05, B06) | mesure honnête de l'apport du LLM |
 | Résolution classique | solveur LLM seul vs solveur déterministe complet en parallèle | phase R dédiée (R01→R16) | étalon dur explicable ; ses justifications (R11) servent de few-shot au LLM (C04) et mesurent honnêtement son apport (C10) |
 | Guess en incertitude | aléatoire vs minimisation de probabilité exacte | probabilités combinatoires (R07, R09) | réduit les défaites évitables, benchmark reproductible |
+| Visualisation web | app distante vs site local servi par le projet | site local 127.0.0.1 (W01, W16) | cohérent avec l'objectif « tourne en local » ; aucun déploiement ni exposition publique |
+| Frontend | framework SPA vs pages statiques légères | statiques sans bundler obligatoire (W04) | zéro dépendance lourde, lisible et modifiable par le LLM lui-même |
 | Auto-résolution | patch auto direct vs dry-run + garde-fous | dry-run + tests intouchables + budget (D07-D09) | éviter que le LLM "triche" en modifiant les tests |
 | Apprentissage | fine-tuning vs mémoire de leçons en prompt | leçons versionnées + promotion mesurée (E03, E05) | fine-tuning lourd et peu auditable ; leçons lisibles et traçables |
 
@@ -216,6 +244,42 @@ R11 -> C04        [uses]
 R14 -> C10        [measures]
 R14 -> G03        [depends_on]
 R16 -> G04        [depends_on]
+E01 -> W02        [uses]
+C09 -> W02        [uses]
+C10 -> W02        [uses]
+E03 -> W02        [uses]
+A02 -> W01        [depends_on]
+W01 -> W02        [depends_on]
+W02 -> W03        [depends_on]
+W03 -> W04        [depends_on]
+W04 -> W05        [depends_on]
+W05 -> W06        [depends_on]
+E01 -> W06        [uses]
+W05 -> W07        [depends_on]
+R11 -> W07        [uses]
+C06 -> W07        [uses]
+W05 -> W08        [depends_on]
+R07 -> W08        [uses]
+W05 -> W09        [depends_on]
+R05 -> W09        [uses]
+R06 -> W09        [uses]
+W02 -> W10        [depends_on]
+C10 -> W10        [uses]
+R14 -> W10        [uses]
+W02 -> W11        [depends_on]
+E03 -> W11        [uses]
+E05 -> W11        [uses]
+W02 -> W12        [depends_on]
+D05 -> W12        [uses]
+W06 -> W13        [depends_on]
+W02 -> W13        [depends_on]
+W13 -> W14        [depends_on]
+F03 -> W14        [uses]
+W02 -> W15        [depends_on]
+W01 -> W16        [depends_on]
+W01 -> W17        [depends_on]
+F01 -> W17        [uses]
+W18 -> G04        [depends_on]
 B01 -> B02        [depends_on]
 B01 -> B03        [depends_on]
 B02 -> B04        [depends_on]
@@ -318,6 +382,24 @@ R13  | R | test    | fixtures par regle (grilles seedees)
 R14  | R | bench   | benchmark du solveur classique
 R15  | R | cli     | commande solve --method classic --explain
 R16  | R | doc     | doc des regles classiques
+W01  | W | infra   | serveur HTTP local (127.0.0.1 uniquement)
+W02  | W | code    | API JSON locale sur les artefacts
+W03  | W | code    | schema JSON partage (CLI/API/frontend)
+W04  | W | infra   | structure frontend statique sans bundler
+W05  | W | code    | composant grille demineur
+W06  | W | code    | replay interactif coup par coup
+W07  | W | code    | surcouche justifications par coup
+W08  | W | code    | heatmap des probabilites de mines
+W09  | W | code    | visualisation contraintes CSP
+W10  | W | code    | vue benchmarks (win-rate par solveur)
+W11  | W | code    | vue memoire de lecons
+W12  | W | code    | vue journal d'auto-resolution
+W13  | W | code    | mode live (partie en direct)
+W14  | W | code    | mode duel humain vs solveur (web)
+W15  | W | test    | tests API + rendu frontend
+W16  | W | policy  | verifications securite locale (localhost, secrets)
+W17  | W | cli     | commande demineur serve --open
+W18  | W | doc     | doc architecture web
 C02  | C | code    | backend API distante optionnelle
 C03  | C | code    | backend modele local
 C04  | C | prompt  | prompt systeme v1 (regles + JSON strict)
@@ -380,6 +462,10 @@ graph LR
   C --> E[E Apprentissage]
   B --> F[F Interface locale]
   C --> F
+  R --> W[W Site web local]
+  C --> W
+  E --> W
+  D --> W
   D --> G[G Docs]
   C --> G
   E --> G
@@ -395,4 +481,5 @@ graph LR
 5. D01 → D10 (auto-résolution) — le LLM corrige ses propres erreurs.
 6. E01 → E09 (apprentissage) — la boucle long terme.
 7. F01 → F07 (interface) — confort d'usage local.
-8. G02 → G04 (docs) — en continu, dès que D, C, R, E produisent des données.
+8. W01 → W18 (site web de visualisation) — une fois que C, R, D, E produisent des artefacts à montrer.
+9. G02 → G04 (docs) — en continu, dès que D, C, R, E produisent des données.
