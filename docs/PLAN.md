@@ -50,7 +50,7 @@ Statut : `[ ]` à faire, `[~]` en cours, `[x]` fait, `[!]` bloqué.
 - [ ] B03 : sérialisation — exporter `game_view` en texte compact lisible par LLM (grille ASCII + règles + historique des coups).
 - [ ] B04 : parsing — parser la réponse du LLM en `Action` validée (rejet + re-prompt en cas d'action illégale ou mal formée).
 - [ ] B05 : solveur baseline `RandomSolver` (aléatoire légal) — étalon de comparaison.
-- [ ] B06 : solveur déterministe `RuleSolver` — règles exactes classiques (single-point, subset/1-2-1, éventuellement CSP simple) — étalon "sans IA".
+- [ ] B06 : solveur déterministe `RuleSolver` **minimal** — uniquement la règle single-point (R02) ; version de démarrage, absorbée puis remplacée par le solveur classique complet de la phase R (R10) — étalon « sans IA ».
 - [ ] B07 : limite de coups / timeout par action (un LLM qui boucle ne bloque pas la partie).
 - [ ] B08 : tests — le solveur baseline termine toujours une partie ; `RuleSolver` gagne sur des grilles faciles seedées.
 
@@ -73,7 +73,7 @@ que le LLM pourra consulter / réutiliser. Toutes les techniques sont détermini
 - [ ] R11 : explicabilité — chaque décision émet une justification textuelle courte (`"R03: subset → (2,3) sûr"`), réutilisable comme few-shot pour le LLM (C04).
 - [ ] R12 : détection de configuration impossible — si le CSP n'a aucune solution, signaler un bug moteur ou une vue corrompue (fail-fast, utile pour D02).
 - [ ] R13 : tests — grilles seedées couvrant chaque règle (une fixture par règle, y compris cas 1-2-1 et devinette forcée).
-- [ ] R14 : benchmark — win-rate sur N seeds par difficulté, comparé à RandomSolver et RuleSolver (B05, B06) ; résultats dans `docs/benchmarks.md`.
+- [ ] R14 : benchmark — win-rate sur N seeds par difficulté, comparé à RandomSolver et RuleSolver (B05, B06) ; **même harnais de benchmark que C10** (pas de code dupliqué) ; résultats dans `docs/benchmarks.md`.
 - [ ] R15 : commandes CLI — `demineur solve --seed X --method classic` + `--explain` pour afficher les justifications (R11).
 - [ ] R16 : documentation — `docs/classic_solver.md` : chaque règle, sa preuve, ses cas limites.
 
@@ -112,7 +112,7 @@ que le LLM pourra consulter / réutiliser. Toutes les techniques sont détermini
 - [ ] E03 : mémoire de stratégies — fichier `memory/strategies.md` versionné, injecté dans le prompt système (C04).
 - [ ] E04 : élagage — les leçons obsolètes ou contredites sont marquées, pas supprimées (traçabilité).
 - [ ] E05 : validation des leçons — une nouvelle stratégie n'est promue qu'après win-rate amélioré sur un set de seeds fixe.
-- [ ] E06 : auto-critique — après défaite, l'LLM analyse le coup fatal et propose une règle corrective.
+- [ ] E06 : auto-critique — après défaite, le LLM analyse le coup fatal et propose une règle corrective.
 - [ ] E07 : comparaison avant/après — benchmark (C10) rejoué à chaque ajout de leçons pour mesurer le gain.
 - [ ] E08 : limite de contexte — la mémoire injectée est compactée (top-K leçons les plus utiles).
 - [ ] E09 : tests — parties avec mémoire simulée (mock) : vérifier l'injection et la promotion des leçons.
@@ -144,11 +144,11 @@ est servi par un petit serveur local qui lit les artefacts (logs JSONL, mémoire
 
 ### Phase F — Interface locale (F01 → F07)
 
-- [ ] F01 : CLI complète — `demineur new|play|run-llm|benchmark|autofix` avec `--seed`, `--difficulty`.
+- [ ] F01 : CLI complète — `demineur new|play|run-llm|solve|benchmark|serve|autofix` avec `--seed`, `--difficulty` (intègre les commandes R15 et W17).
 - [ ] F02 : rendu terminal — affichage coloré de la grille (ANSI, sans dépendance).
 - [ ] F03 : mode duel — LLM vs humain sur la même grille seedée.
-- [ ] F04 : mode spectateur — rejouer une partie loggée coup par coup.
-- [ ] F05 : interface TUI/web locale optionnelle (uniquement si le reste est vert ; écoute localhost uniquement).
+- [ ] F04 : mode spectateur (CLI) — rejouer une partie loggée coup par coup dans le terminal ; version web riche = W06 (pas de duplication : F04 = rendu texte minimal, W06 = replay interactif complet).
+- [ ] F05 : (annulé) interface TUI/web locale — remplacée par la phase W (W01→W18) ; ID conservé pour la stabilité du graphe, aucune arête n'en dépend.
 - [ ] F06 : packaging — `pip install -e .` fonctionne ; point d'entrée `demineur`.
 - [ ] F07 : README — guide d'installation et d'utilisation locale.
 
@@ -166,6 +166,7 @@ est servi par un petit serveur local qui lit les artefacts (logs JSONL, mémoire
 | session 1 | G01 | Création de ce plan fragmenté (A→G, 60+ micro-tâches) et du graphe de dépendances lisible par LLM. Aucune ligne de moteur encore écrite. |
 | session 1 | G01 | Ajout de la phase R « Résolution classique » (R01→R16) : contraintes, règles single-point/subset, CSP, probabilités exactes, heuristique de guess, explicabilité, CLI et benchmark. Le graphe (§5) intègre les 16 nouveaux nœuds. |
 | session 1 | G01 | Ajout de la phase W « Site web de visualisation » (W01→W18) : serveur local 127.0.0.1, API JSON, replay interactif, heatmaps de probabilités, vues benchmarks/leçons/auto-résolution, mode live et duel. Le graphe (§5) intègre les 18 nouveaux nœuds. |
+| session 1 | G01 | Audit d'intégrité : total réel = 98 micro-tâches (correction du « 60+ » initial) ; résolution des redondances B06↔phase R, F04↔W06, F05↔phase W (F05 annulé) ; F01 intègre les commandes R15/W17 ; INV5 mis à jour (C03, W01, W16) ; arêtes de traçabilité ajoutées (B06→R02, R15→F01, W17→F01, C09→G03) ; nœuds du graphe réordonnés par phase ; typos corrigées (E04, E06). |
 
 Règle de mise à jour : chaque tâche terminée ajoute une ligne ici et passe à `[x]` dans sa phase.
 
@@ -178,7 +179,7 @@ Règle de mise à jour : chaque tâche terminée ajoute une ligne ici et passe �
 | Interface LLM | prompts libres vs format JSON strict | JSON strict + validation (C04, C06) | parsing fiable, actions illégales rejetées, boucle de retry propre |
 | Backend LLM | API distante / modèle local / hybride | interface unique `LLMBackend` (C01) | local-first sans bloquer l'usage d'une API ; tests via mock |
 | Anti-fuite d'info | solver voit la grille complète vs vue joueur | vue joueur uniquement (B01) | le LLM doit raisonner comme un joueur, sinon les résultats sont faussés |
-| Étalon | aucun / RandomSolver / RuleSolver | les deux (B05, B06) | mesure honnête de l'apport du LLM |
+| Étalon | aucun / RandomSolver / RuleSolver | les deux (B05, B06) | mesure honnête de l'apport du LLM ; B06 volontairement minimal, la phase R fournit l'étalon dur complet (anti-redondance : B06 absorbée par R10) |
 | Résolution classique | solveur LLM seul vs solveur déterministe complet en parallèle | phase R dédiée (R01→R16) | étalon dur explicable ; ses justifications (R11) servent de few-shot au LLM (C04) et mesurent honnêtement son apport (C10) |
 | Guess en incertitude | aléatoire vs minimisation de probabilité exacte | probabilités combinatoires (R07, R09) | réduit les défaites évitables, benchmark reproductible |
 | Visualisation web | app distante vs site local servi par le projet | site local 127.0.0.1 (W01, W16) | cohérent avec l'objectif « tourne en local » ; aucun déploiement ni exposition publique |
@@ -188,7 +189,7 @@ Règle de mise à jour : chaque tâche terminée ajoute une ligne ici et passe �
 
 ## 5. Graphe lisible par LLM
 
-Format : liste d'arêtes `source -> cible [type]` (type ∈ `depends_on`, `uses`, `measures`, `learns_from`),
+Format : liste d'arêtes `source -> cible [type]` (type ∈ `depends_on`, `uses`, `measures`),
 suivie d'une définition des nœuds. Ce format est conçu pour être parsé directement par un LLM
 (une arête par ligne, IDs stables).
 
@@ -219,6 +220,7 @@ A13 -> A14        [depends_on]
 A14 -> B01        [uses]
 B01 -> R01        [uses]
 B04 -> R01        [uses]
+B06 -> R02        [uses]
 R01 -> R02        [depends_on]
 R01 -> R03        [depends_on]
 R02 -> R04        [depends_on]
@@ -306,6 +308,7 @@ C09 -> C10        [depends_on]
 C05 -> C11        [depends_on]
 C07 -> C12        [uses]
 A02 -> D01        [depends_on]
+A02 -> F06        [depends_on]
 A13 -> D01        [uses]
 D01 -> D02        [depends_on]
 D02 -> D03        [depends_on]
@@ -330,15 +333,18 @@ E05 -> E07        [depends_on]
 C10 -> E07        [measures]
 E03 -> E08        [depends_on]
 C12 -> E09        [uses]
+R15 -> F01        [uses]
+W17 -> F01        [uses]
 C08 -> F01        [uses]
 A14 -> F02        [uses]
 F01 -> F03        [depends_on]
 F01 -> F04        [depends_on]
 F04 -> F05        [depends_on]
-A02 -> F06        [depends_on]
+F01 -> F06        [depends_on]
 F01 -> F07        [depends_on]
 D05 -> G02        [depends_on]
 C10 -> G03        [depends_on]
+C09 -> G03        [uses]
 E04 -> G04        [depends_on]
 
 # NODES
@@ -382,24 +388,6 @@ R13  | R | test    | fixtures par regle (grilles seedees)
 R14  | R | bench   | benchmark du solveur classique
 R15  | R | cli     | commande solve --method classic --explain
 R16  | R | doc     | doc des regles classiques
-W01  | W | infra   | serveur HTTP local (127.0.0.1 uniquement)
-W02  | W | code    | API JSON locale sur les artefacts
-W03  | W | code    | schema JSON partage (CLI/API/frontend)
-W04  | W | infra   | structure frontend statique sans bundler
-W05  | W | code    | composant grille demineur
-W06  | W | code    | replay interactif coup par coup
-W07  | W | code    | surcouche justifications par coup
-W08  | W | code    | heatmap des probabilites de mines
-W09  | W | code    | visualisation contraintes CSP
-W10  | W | code    | vue benchmarks (win-rate par solveur)
-W11  | W | code    | vue memoire de lecons
-W12  | W | code    | vue journal d'auto-resolution
-W13  | W | code    | mode live (partie en direct)
-W14  | W | code    | mode duel humain vs solveur (web)
-W15  | W | test    | tests API + rendu frontend
-W16  | W | policy  | verifications securite locale (localhost, secrets)
-W17  | W | cli     | commande demineur serve --open
-W18  | W | doc     | doc architecture web
 C02  | C | code    | backend API distante optionnelle
 C03  | C | code    | backend modele local
 C04  | C | prompt  | prompt systeme v1 (regles + JSON strict)
@@ -434,9 +422,27 @@ F01  | F | cli     | CLI complete
 F02  | F | ui      | rendu terminal ANSI
 F03  | F | ui      | mode duel LLM vs humain
 F04  | F | ui      | mode spectateur (replay)
-F05  | F | ui      | TUI/web locale optionnelle (localhost only)
+F05  | F | annule  | (annule) remplace par la phase W
 F06  | F | pkg     | packaging pip install -e .
 F07  | F | doc     | README d'utilisation
+W01  | W | infra   | serveur HTTP local (127.0.0.1 uniquement)
+W02  | W | code    | API JSON locale sur les artefacts
+W03  | W | code    | schema JSON partage (CLI/API/frontend)
+W04  | W | infra   | structure frontend statique sans bundler
+W05  | W | code    | composant grille demineur
+W06  | W | code    | replay interactif coup par coup
+W07  | W | code    | surcouche justifications par coup
+W08  | W | code    | heatmap des probabilites de mines
+W09  | W | code    | visualisation contraintes CSP
+W10  | W | code    | vue benchmarks (win-rate par solveur)
+W11  | W | code    | vue memoire de lecons
+W12  | W | code    | vue journal d'auto-resolution
+W13  | W | code    | mode live (partie en direct)
+W14  | W | code    | mode duel humain vs solveur (web)
+W15  | W | test    | tests API + rendu frontend
+W16  | W | policy  | verifications securite locale (localhost, secrets)
+W17  | W | cli     | commande demineur serve --open
+W18  | W | doc     | doc architecture web
 G01  | G | doc     | ce document (plan + graphe)
 G02  | G | doc     | journal auto-resolution
 G03  | G | doc     | resultats benchmarks
@@ -447,7 +453,7 @@ G04  | G | doc     | synthese des lecons
 # INV2: les tests sont la source de verite et ne sont jamais modifies par l'auto-résolution (D07)
 # INV3: chaque tache terminee = une ligne dans la section 3 et un [x] dans sa phase
 # INV4: aucun secret (cle API) n'est commit ; les backends lisent l'environnement (C02)
-# INV5: aucune ecoute reseau autre que localhost (C03, F05)
+# INV5: aucune ecoute reseau autre que localhost (C03, W01, W16)
 ```
 
 Vue Mermaid équivalente (phases uniquement, pour lecture humaine) :
