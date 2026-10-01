@@ -15,6 +15,9 @@
     <button class="tab" data-tab="live">Live</button>
     <button class="tab" data-tab="duel">Duel</button>
   </nav>
+  <div id="bannière-serveur" class="bannière cache">
+    Serveur local injoignable — lancez <code>demineur serve</code> puis rechargez la page.
+  </div>
 </header>
 
 <main>
@@ -50,8 +53,7 @@
   <!-- ============ Benchmarks (W10) ============ -->
   <section id="benchmarks" class="panneau">
     <h2>Benchmarks — win-rate par solveur</h2>
-    <table id="table-benchmarks"></table>
-    <canvas id="chart-benchmarks" width="640" height="280"></canvas>
+    <div id="benchmarks-contenu"><p class="aide">Chargement…</p></div>
   </section>
 
   <!-- ============ Live (W13) ============ -->
@@ -105,7 +107,11 @@
 </main>
 
 <footer>
-  <p>100% local — aucune ressource distante. Serveur limité à 127.0.0.1.</p>
+  <p>
+    <a href="https://github.com/max-boop345/conquering_ai_enpc">Repo GitHub</a>
+    — par Maxime Novo Frelicot et Joris Saint-Genes
+  </p>
+  <p>100% local — aucune ressource distante chargée. Serveur limité à 127.0.0.1.</p>
 </footer>
 
 <script src="app.js"></script>

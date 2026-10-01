@@ -202,12 +202,7 @@ def make_handler(games_dir: str, web_dir: str):
                 return self._analyse(m.group(1), int(m.group(2)))
 
             if chemin == "/api/benchmarks":
-                chemin_bench = os.path.join(games_dir, "benchmarks.json")
-                if os.path.isfile(chemin_bench):
-                    with open(chemin_bench, encoding="utf-8") as f:
-                        data = json.load(f)
-                    return self._json(data)
-                return self._json({"version": 1, "kind": "benchmark", "results": {}})
+                return self._json(self._benchmarks())
 
             if chemin == "/api/live/new":
                 état["live"] = LiveState(
@@ -252,6 +247,25 @@ def make_handler(games_dir: str, web_dir: str):
 
             return self._json({"error": "route inconnue"}, 404)
 
+        def _benchmarks(self) -> dict:
+            """Agrège tous les artefacts ``benchmarks*.json`` du répertoire."""
+            ordre = {"beginner": 0, "intermediate": 1, "expert": 2}
+            documents = []
+            if os.path.isdir(games_dir):
+                for nom in os.listdir(games_dir):
+                    if not (nom.startswith("benchmarks") and nom.endswith(".json")):
+                        continue
+                    try:
+                        with open(os.path.join(games_dir, nom), encoding="utf-8") as f:
+                            data = json.load(f)
+                    except (OSError, json.JSONDecodeError):
+                        continue  # artefact illisible: ignoré, jamais bloquant
+                    if not isinstance(data, dict) or "results" not in data:
+                        continue
+                    documents.append(data)
+            documents.sort(key=lambda d: ordre.get(d.get("difficulty", "?"), 9))
+            return {"version": 1, "kind": "benchmarks", "benchmarks": documents}
+
         def _partie(self, identifiant: str):
             for g in list_games(games_dir):
                 if g["id"] == identifiant:
@@ -284,6 +298,17 @@ def make_handler(games_dir: str, web_dir: str):
     return Handler
 
 
+def défaut_games_dir() -> str:
+    """Répertoire d'artefacts par défaut : ``./games`` s'il existe, sinon
+    celui du dépôt (le site fonctionne même lancé depuis un autre dossier)."""
+    if os.path.isdir("games"):
+        return "games"
+    racine = os.path.normpath(os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+    candidat = os.path.join(racine, "games")
+    return candidat if os.path.isdir(candidat) else "games"
+
+
 def make_server(games_dir: str, port: int = 8765,
                 web_dir: str | None = None) -> ThreadingHTTPServer:
     """Crée le serveur (W01). Bind 127.0.0.1 forcé (W16, INV5)."""
@@ -305,12 +330,14 @@ def main(argv=None) -> int:
                                      description="Site local de visualisation")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--open", action="store_true")
-    parser.add_argument("--games-dir", default="games")
+    parser.add_argument("--games-dir", default=None,
+                        help="répertoire des artefacts (défaut: ./games ou celui du dépôt)")
     if argv is not None and hasattr(argv, "port"):
         args = argv  # déjà un Namespace (appel depuis demineur.cli)
     else:
         args = parser.parse_args(argv if isinstance(argv, list) else None)
-    serveur = make_server(games_dir=args.games_dir, port=args.port)
+    games_dir = args.games_dir or défaut_games_dir()
+    serveur = make_server(games_dir=games_dir, port=args.port)
     host, port = serveur.server_address[:2]
     url = f"http://{host}:{port}/"
     print(f"serveur local: {url} (CTRL+C pour arrêter)")

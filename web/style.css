@@ -185,3 +185,25 @@ footer {
   color: #9aa0b0;
   font-size: 0.8rem;
 }
+
+footer a { color: var(--accent); }
+
+/* bandeau d'état du serveur local */
+.bannière {
+  margin-left: auto;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--mine);
+  border-radius: 6px;
+  color: var(--mine);
+  font-size: 0.8rem;
+}
+
+.bannière code {
+  background: var(--panneau);
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+}
+
+#benchmarks-contenu h3 { margin-top: 1.4rem; }
+
+#benchmarks-contenu svg { display: block; }

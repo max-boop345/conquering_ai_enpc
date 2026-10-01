@@ -20,7 +20,7 @@
 | GET | `/api/games/{id}` | entête + événements + résultat |
 | GET | `/api/games/{id}/analysis/{n}` | analyse de la vue avant le coup `n` : probabilités (W08), composantes CSP, sûres/mines (W09) |
 | GET | `/api/solvers` | solveurs disponibles |
-| GET | `/api/benchmarks` | artefact benchmarks (ou `results: {}`) |
+| GET | `/api/benchmarks` | agrégation de tous les artefacts `games/benchmarks*.json` : `{"benchmarks": [{difficulty, grid, seeds, results}, ...]}` classés beginner → expert |
 | GET | `/api/live/new?seed&w&h&mines` | nouvelle partie live (W13) |
 | GET | `/api/live/state` | état courant (vue + coups) |
 | GET | `/api/live/step` | le solveur joue un coup |

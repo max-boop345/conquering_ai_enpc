@@ -186,8 +186,8 @@ def _parser() -> argparse.ArgumentParser:
     p_serve = sub.add_parser("serve", help="lancer le site local de visualisation (W17)")
     p_serve.add_argument("--port", type=int, default=8765)
     p_serve.add_argument("--open", action="store_true", help="ouvrir le navigateur local")
-    p_serve.add_argument("--games-dir", default="games",
-                         help="répertoire des artefacts de parties (JSONL)")
+    p_serve.add_argument("--games-dir", default=None,
+                         help="répertoire des artefacts de parties (défaut: ./games ou dépôt)")
     p_serve.set_defaults(fn=cmd_serve)
 
     p_duel = sub.add_parser("duel", help="vous contre le solveur (même seed) (F03)")

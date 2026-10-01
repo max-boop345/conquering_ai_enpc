@@ -147,6 +147,8 @@ est servi par un petit serveur local qui lit les artefacts (logs JSONL, mémoire
 
 | session 3 | R18/R14/C13 | Correction des points de KNOWN_ERRORS.md : évaluation paresseuse de l'analyse (CSP/probabilités seulement si les règles ne déduisent rien — pire coup expert 0.14s, marge ×7 sur le plafond), lint ruff 0 erreur (31 corrigés), option solve --save JSONL, fallback de rule seedé par la partie (benchmarks strictement déterministes), validation case minée révélée en game_from_json. 177 tests verts. |
 
+| session 4 | W10/W02/W19 | Améliorations web : /api/benchmarks agrège tous les artefacts par difficulté (tables + graphiques par difficulté), 3 parties d'exemple (une par solveur: classic/rule/random), pied de page avec lien repo GitHub et auteurs (seule exception W19: lien de navigation), bandeau d'erreur si backend injoignable + messages d'erreur par bouton live/duel, repli du répertoire games/ vers celui du dépôt. 180 tests verts. |
+
 Règle de mise à jour : chaque tâche terminée ajoute une ligne ici et passe à `[x]` dans sa phase.
 
 Règle de mise à jour : chaque tâche terminée ajoute une ligne ici et passe à `[x]` dans sa phase.

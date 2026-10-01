@@ -54,11 +54,13 @@ class TestServeurLocal(unittest.TestCase):
         runner.run(ClassicSolver())
         cls.chemin = save_game(cls.dossier, runner, meta={
             "seed": 4, "solver": "classic", "difficulty": "beginner"})
-        # un artefact benchmark
-        with open(os.path.join(cls.dossier, "benchmarks.json"), "w") as f:
-            json.dump({"version": 1, "kind": "benchmark", "difficulty": "beginner",
-                       "results": {"classic": {"wins": 9, "seeds": 10,
-                                                "win_rate": 0.9}}}, f)
+        # artefacts benchmarks (un par difficulté)
+        for difficulté in ("beginner", "intermediate", "expert"):
+            with open(os.path.join(cls.dossier, f"benchmarks-{difficulté}.json"), "w") as f:
+                json.dump({"version": 1, "kind": "benchmark", "difficulty": difficulté,
+                           "seeds": 10,
+                           "results": {"classic": {"wins": 9, "seeds": 10,
+                                                    "win_rate": 0.9}}}, f)
         cls.serveur = make_server(games_dir=cls.dossier, port=0)
         cls.thread = threading.Thread(target=cls.serveur.serve_forever, daemon=True)
         cls.thread.start()
@@ -92,13 +94,19 @@ class TestServeurLocal(unittest.TestCase):
         self.assertIn("démineur", texte.lower())
 
     def test_assets_locaux_uniquement(self):
-        # W19 : aucun chargement de ressource distante (src/href/fetch/url)
-        motifs_distan = ['src="http', "src='http", 'href="http', "href='http",
-                         'fetch("http', "fetch('http", "fetch(`http", "url(http"]
+        # W19 : aucun chargement de ressource distante ; le lien GitHub du
+        # pied de page (navigation, pas chargement) est la seule exception
+        import re as _re
+
+        motifs_distan = ['src="http', "src='http", 'fetch("http', "fetch('http",
+                         "url(http"]
         for asset in ("/", "/style.css", "/app.js"):
             _, texte = http_get_text(f"{self.base}{asset}")
             for motif in motifs_distan:
-                self.assertNotIn(motif, texte, f"{asset} référence une ressource distante")
+                self.assertNotIn(motif, texte, f"{asset} charge du distant")
+            for lien in _re.findall(r'href="https?://[^"]+"', texte):
+                self.assertIn("github.com/max-boop345", lien,
+                              f"{asset}: lien externe non autorisé")
 
     # ---------------------------------------------------------- W02
     def test_api_solvers(self):
@@ -127,9 +135,17 @@ class TestServeurLocal(unittest.TestCase):
         self.assertEqual(code, 404)
 
     def test_api_benchmarks(self):
+        # agrégation de tous les artefacts benchmarks*.json du répertoire
         code, data = http_get(f"{self.base}/api/benchmarks")
         self.assertEqual(code, 200)
-        self.assertIn("classic", data["results"])
+        self.assertEqual(data["kind"], "benchmarks")
+        difficultés = [b["difficulty"] for b in data["benchmarks"]]
+        self.assertIn("beginner", difficultés)
+        self.assertIn("intermediate", difficultés)
+        self.assertIn("expert", difficultés)
+        beginner = next(b for b in data["benchmarks"] if b["difficulty"] == "beginner")
+        self.assertIn("classic", beginner["results"])
+        self.assertEqual(beginner["seeds"], 10)
 
     def test_api_benchmarks_absents(self):
         with tempfile.TemporaryDirectory() as d:
@@ -142,7 +158,7 @@ class TestServeurLocal(unittest.TestCase):
             s.server_close()
             t.join(timeout=2)
             self.assertEqual(code, 200)
-            self.assertEqual(data["results"], {})
+            self.assertEqual(data["benchmarks"], [])
 
     def test_api_analysis_par_coup(self):
         # W08/W09 : analyse de la vue avant un coup donné

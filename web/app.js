@@ -92,6 +92,27 @@ function benchmarkTable(results) {
   return html;
 }
 
+/* Section complète d'une difficulté : titre + table + graphique. */
+function benchmarkSection(doc) {
+  var g = doc.grid ? " — " + doc.grid.width + "x" + doc.grid.height +
+    ", " + doc.grid.mines + " mines" : "";
+  return "<h3>" + (doc.difficulty || "custom") + g +
+    " (" + (doc.seeds || 0) + " seeds)</h3>" +
+    "<table>" + benchmarkTable(doc.results || {}) + "</table>" +
+    benchmarkChart(doc.results || {});
+}
+
+/* Toutes les difficultés de /api/benchmarks (W10). */
+function benchmarksSections(data) {
+  var docs = (data && data.benchmarks) || [];
+  if (docs.length === 0) {
+    return "<p class='aide'>Aucun benchmark disponible. Lancez : " +
+      "<code>demineur benchmark --difficulty beginner --seeds 30 " +
+      "--solvers random,rule,classic --json games/benchmarks.json</code></p>";
+  }
+  return docs.map(benchmarkSection).join("");
+}
+
 /* ============ interface (DOM) ============ */
 
 function initApp() {
@@ -111,6 +132,19 @@ function initApp() {
       return r.json();
     });
   };
+  var erreur = function (zone, préfixe) {
+    return function (err) {
+      var cible = document.getElementById(zone);
+      if (cible) cible.textContent = préfixe + " — " + err.message;
+    };
+  };
+
+  /* ---------- état du serveur : bandeau si le backend manque ---------- */
+  api("/api/solvers").then(function () {
+    document.getElementById("bannière-serveur").classList.add("cache");
+  }).catch(function () {
+    document.getElementById("bannière-serveur").classList.remove("cache");
+  });
 
   /* ---------- onglets ---------- */
   var onglets = document.querySelectorAll(".tab");
@@ -140,9 +174,9 @@ function initApp() {
         ul.appendChild(li);
       });
       if (data.games.length === 0) {
-        ul.innerHTML = "<li class='aide'>Aucune partie loggée.</li>";
+        ul.innerHTML = "<li class='aide'>Aucune partie loggée dans games/.</li>";
       }
-    });
+    }).catch(erreur("liste-parties", "serveur injoignable"));
   }
 
   function chargerPartie(id, li) {
@@ -266,15 +300,11 @@ function initApp() {
   /* ---------- benchmarks (W10) ---------- */
   function chargerBenchmarks() {
     api("/api/benchmarks").then(function (data) {
-      document.getElementById("table-benchmarks").innerHTML =
-        benchmarkTable(data.results || {});
-      var zone = document.getElementById("chart-benchmarks");
-      var svg = benchmarkChart(data.results || {});
-      if (svg.indexOf("<svg") === 0) {
-        zone.outerHTML = svg; /* remplace le canvas par le SVG généré */
-      } else {
-        zone.outerHTML = "<div id='chart-benchmarks'>" + svg + "</div>";
-      }
+      document.getElementById("benchmarks-contenu").innerHTML =
+        benchmarksSections(data);
+    }).catch(function () {
+      document.getElementById("benchmarks-contenu").innerHTML =
+        "<p class='aide'>Serveur injoignable — lancez <code>demineur serve</code>.</p>";
     });
   }
 
@@ -294,10 +324,12 @@ function initApp() {
       "&w=" + document.getElementById("live-w").value +
       "&h=" + document.getElementById("live-h").value +
       "&mines=" + document.getElementById("live-mines").value;
-    api("/api/live/new" + q).then(liveMAJ);
+    api("/api/live/new" + q).then(liveMAJ)
+      .catch(erreur("live-etat", "nouvelle partie impossible"));
   });
   document.getElementById("btn-live-step").addEventListener("click", function () {
-    api("/api/live/step").then(liveMAJ);
+    api("/api/live/step").then(liveMAJ)
+      .catch(erreur("live-etat", "aucune partie en cours"));
   });
   document.getElementById("btn-live-auto").addEventListener("click", function () {
     if (liveAuto) {
@@ -306,20 +338,25 @@ function initApp() {
       this.textContent = "lecture auto";
       return;
     }
-    liveAuto = setInterval(function () {
-      api("/api/live/step").then(function (data) {
-        liveMAJ(data);
-        if (data.state !== "playing") {
-          clearInterval(liveAuto);
-          liveAuto = null;
-          document.getElementById("btn-live-auto").textContent = "lecture auto";
-        }
-      }).catch(function () {
-        clearInterval(liveAuto);
-        liveAuto = null;
-      });
-    }, 350);
-    this.textContent = "pause";
+    api("/api/live/step").then(function (data) {
+      if (data.state === "playing") {
+        liveAuto = setInterval(function () {
+          api("/api/live/step").then(function (data) {
+            liveMAJ(data);
+            if (data.state !== "playing") {
+              clearInterval(liveAuto);
+              liveAuto = null;
+              document.getElementById("btn-live-auto").textContent = "lecture auto";
+            }
+          }).catch(function () {
+            clearInterval(liveAuto);
+            liveAuto = null;
+          });
+        }, 350);
+        document.getElementById("btn-live-auto").textContent = "pause";
+      }
+      liveMAJ(data);
+    }).catch(erreur("live-etat", "aucune partie en cours"));
   });
 
   /* ---------- duel (W14) ---------- */
@@ -340,7 +377,7 @@ function initApp() {
     api("/api/duel/new" + q).then(function (data) {
       duelActif = data;
       duelMAJ(data);
-    });
+    }).catch(erreur("duel-etat", "nouveau duel impossible"));
   });
 
   document.getElementById("grille-duel-humain").addEventListener("click", function (e) {
@@ -373,5 +410,6 @@ if (typeof document !== "undefined" && typeof fetch !== "undefined") {
 /* export pour les tests (node) */
 if (typeof module !== "undefined" && module.exports) {
   module.exports = { gridHtml, cellHtml, heatOpacity, eventSummary,
-                     benchmarkChart, benchmarkTable };
+                     benchmarkChart, benchmarkTable, benchmarkSection,
+                     benchmarksSections };
 }

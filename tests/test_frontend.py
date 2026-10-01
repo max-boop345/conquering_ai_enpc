@@ -108,6 +108,41 @@ class TestFonctionsPures(unittest.TestCase):
         # tri par win-rate décroissant
         self.assertLess(sortie.index("classic"), sortie.index("random"))
 
+    def test_benchmarks_sections_par_difficulte(self):
+        data = {"kind": "benchmarks", "benchmarks": [
+            {"difficulty": "beginner", "seeds": 30,
+             "grid": {"width": 9, "height": 9, "mines": 10},
+             "results": {"classic": {"win_rate": 0.967, "wins": 29, "losses": 1,
+                                     "gave_ups": 0, "avg_moves": 20}}},
+            {"difficulty": "expert", "seeds": 20,
+             "grid": {"width": 30, "height": 16, "mines": 99},
+             "results": {"classic": {"win_rate": 0.45, "wins": 9, "losses": 11,
+                                     "gave_ups": 0, "avg_moves": 240}}},
+        ]}
+        script = (
+            "const app = require(" + json.dumps(APP_JS) + ");"
+            "const html = app.benchmarksSections(" + json.dumps(data) + ");"
+            "console.log(JSON.stringify({"
+            "beginner: html.includes('<h3>beginner'), "
+            "expert: html.includes('<h3>expert'), "
+            "tables: (html.match(/<table>/g) || []).length, "
+            "svgs: (html.match(/<svg/g) || []).length, "
+            "pct: html.includes('96.7%') && html.includes('45.0%')}));"
+        )
+        données = json.loads(_node_exec(script, {}))
+        self.assertTrue(données["beginner"])
+        self.assertTrue(données["expert"])
+        self.assertEqual(données["tables"], 2)
+        self.assertEqual(données["svgs"], 2)
+        self.assertTrue(données["pct"])
+
+    def test_benchmarks_sections_vide(self):
+        script = (
+            "const app = require(" + json.dumps(APP_JS) + ");"
+            "console.log(app.benchmarksSections({benchmarks: []}).includes('Aucun'));"
+        )
+        self.assertIn("true", _node_exec(script, {}))
+
     def test_heat_opacity_borne(self):
         script = (
             "const app = require(" + json.dumps(APP_JS) + ");"
@@ -120,16 +155,31 @@ class TestFonctionsPures(unittest.TestCase):
 
 
 class TestAssetsLocaux(unittest.TestCase):
-    """W19 : le site fonctionne hors ligne, aucune ressource distante."""
+    """W19 : le site fonctionne hors ligne, aucune ressource chargée à distance.
+
+    Exception : le lien de navigation vers le repo GitHub (pied de page)
+    — un clic, pas un chargement de ressource.
+    """
 
     def test_aucune_ressource_distante(self):
-        motifs = ['src="http', "src='http", 'href="http', "href='http",
-                  'fetch("http', "fetch('http", "url(http"]
+        motifs = ['src="http', "src='http", 'fetch("http', "fetch('http",
+                  "url(http"]
         for fichier in ("index.html", "style.css", "app.js"):
             with open(f"{RACINE}/web/{fichier}", encoding="utf-8") as f:
                 contenu = f.read()
             for motif in motifs:
-                self.assertNotIn(motif, contenu, f"{fichier} référence du distant")
+                self.assertNotIn(motif, contenu, f"{fichier} charge du distant")
+            # tout lien http(s) est limité au repo GitHub du projet
+            for lien in __import__("re").findall(r'href="https?://[^"]+"', contenu):
+                self.assertIn("github.com/max-boop345", lien,
+                              f"{fichier}: lien externe non autorisé: {lien}")
+
+    def test_pied_de_page_auteurs_et_repo(self):
+        with open(f"{RACINE}/web/index.html", encoding="utf-8") as f:
+            contenu = f.read()
+        self.assertIn("https://github.com/max-boop345/conquering_ai_enpc", contenu)
+        self.assertIn("Maxime Novo Frelicot", contenu)
+        self.assertIn("Joris Saint-Genes", contenu)
 
     def test_fichiers_present(self):
         for fichier in ("index.html", "style.css", "app.js"):
