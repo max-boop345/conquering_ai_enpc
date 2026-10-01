@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "kind": "benchmark",
+  "difficulty": "expert",
+  "grid": {
+    "width": 30,
+    "height": 16,
+    "mines": 99
+  },
+  "seeds": 20,
+  "results": {
+    "random": {
+      "solver": "random",
+      "difficulty": "expert",
+      "width": 30,
+      "height": 16,
+      "mines": 99,
+      "seeds": 20,
+      "wins": 0,
+      "losses": 20,
+      "gave_ups": 0,
+      "avg_moves": 3.95,
+      "win_rate": 0.0
+    },
+    "rule": {
+      "solver": "rule",
+      "difficulty": "expert",
+      "width": 30,
+      "height": 16,
+      "mines": 99,
+      "seeds": 20,
+      "wins": 0,
+      "losses": 20,
+      "gave_ups": 0,
+      "avg_moves": 114.95,
+      "win_rate": 0.0
+    },
+    "classic": {
+      "solver": "classic",
+      "difficulty": "expert",
+      "width": 30,
+      "height": 16,
+      "mines": 99,
+      "seeds": 20,
+      "wins": 9,
+      "losses": 11,
+      "gave_ups": 0,
+      "avg_moves": 233.0,
+      "win_rate": 0.45
+    }
+  }
+}

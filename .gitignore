@@ -1,5 +1,6 @@
 # artefacts locaux
-games/
+# artefacts de démo volontairement commités (216K, site fonctionnel out-of-the-box)
+# games/ généré à chaud reste possible — ne pas commiter les gros volumes
 __pycache__/
 *.pyc
 .pytest_cache/
