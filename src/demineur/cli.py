@@ -102,6 +102,30 @@ def cmd_serve(argv) -> int:
     return serve_main(argv)
 
 
+def cmd_duel(argv) -> int:
+    """F03 : solveur classique vs humain sur la même grille seedée."""
+    from demineur.duel import run_duel
+    from demineur.solvers.classic import ClassicSolver
+
+    jeu_humain = _résous_jeu(argv)
+    jeu_solveur = _résous_jeu(argv)
+    résultat = run_duel(jeu_humain, jeu_solveur, ClassicSolver(),
+                        input_stream=sys.stdin, output_stream=sys.stdout)
+    print(f"vous: {résultat['human_state'].value} — "
+          f"solveur: {résultat['solver_state'].value}")
+    return 0
+
+
+def cmd_replay(argv) -> int:
+    """F04 : rejouer une partie loggée coup par coup (texte minimal)."""
+    from demineur.artifacts import load_game
+    from demineur.replay import replay_text
+
+    header, events, result = load_game(argv.file)
+    replay_text(header, events, result, output_stream=sys.stdout, delay=argv.delay)
+    return 0
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="demineur",
@@ -146,6 +170,16 @@ def _parser() -> argparse.ArgumentParser:
     p_serve.add_argument("--games-dir", default="games",
                          help="répertoire des artefacts de parties (JSONL)")
     p_serve.set_defaults(fn=cmd_serve)
+
+    p_duel = sub.add_parser("duel", help="vous contre le solveur (même seed) (F03)")
+    grille_args(p_duel)
+    p_duel.set_defaults(fn=cmd_duel)
+
+    p_replay = sub.add_parser("replay", help="rejouer une partie loggée (F04)")
+    p_replay.add_argument("file", help="fichier .jsonl produit par demineur")
+    p_replay.add_argument("--delay", type=float, default=0.0,
+                          help="pause entre les coups (secondes)")
+    p_replay.set_defaults(fn=cmd_replay)
 
     return parser
 
