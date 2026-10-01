@@ -79,6 +79,34 @@ class TestRenduGrille(unittest.TestCase):
         self.assertTrue(données["revelee"])
         self.assertTrue(données["drapeau"])
 
+    def test_mines_exposees_en_fin_de_partie(self):
+        vue = _vue_fixture()
+        mines = [[2, 2], [3, 4]]
+        script = (
+            "const app = require(" + json.dumps(APP_JS) + ");"
+            "const fs = require('fs');"
+            "const vue = JSON.parse(fs.readFileSync('@fixture@', 'utf8'));"
+            "const html = app.gridHtml(vue, " + json.dumps(mines) + ");"
+            "console.log(html);"
+        )
+        html = _node_exec(script, {"fixture.json": json.dumps(vue)})
+        self.assertEqual(html.count("minée"), 2)
+        self.assertIn(">B<", html)
+        # les cases non minées restent rendues normalement
+        self.assertIn("cachée", html)
+
+    def test_bandeau_fin_de_partie(self):
+        script = (
+            "const app = require(" + json.dumps(APP_JS) + ");"
+            "console.log(app.overlayBadge('lost') + '|' + app.overlayBadge('won') + "
+            "'|' + app.overlayBadge('playing'));"
+        )
+        perdu, gagné, rien = _node_exec(script, {}).strip().split("|")
+        self.assertIn("Perdu", perdu)
+        self.assertIn("perdu", perdu)
+        self.assertIn("Gagné", gagné)
+        self.assertEqual(rien, "")
+
 
 @unittest.skipUnless(NODE, "node non disponible")
 class TestFonctionsPures(unittest.TestCase):

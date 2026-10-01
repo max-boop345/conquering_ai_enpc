@@ -90,7 +90,37 @@ aside { min-width: 240px; }
 .case.cachée.sure { background: var(--sûr); color: var(--fond); }
 .case.drapeau { background: #b4782f; color: var(--fond); }
 .case.révélée { background: #262b36; color: var(--texte); }
-.case.minée { background: var(--mine); color: var(--fond); }
+/* conteneurs de grille positionnés (support des bandeaux de fin) */
+#grille-duel-humain, #grille-duel-solveur,
+#grille-live, #grille-replay { position: relative; width: fit-content; }
+
+.case.minée { background: var(--mine); color: var(--fond); font-weight: bold; }
+
+/* bandeau de fin de partie posé sur la grille (W14) */
+.conteneur-grille { position: relative; width: fit-content; }
+
+.bandeau {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  font-weight: bold;
+  letter-spacing: 0.3em;
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.bandeau.perdu {
+  background: rgba(247, 118, 142, 0.82);
+  color: var(--fond);
+}
+
+.bandeau.gagné {
+  background: rgba(158, 206, 106, 0.82);
+  color: var(--fond);
+}
 
 .case.n1 { color: #7aa2f7; }
 .case.n2 { color: #9ece6a; }
@@ -207,3 +237,19 @@ footer a { color: var(--accent); }
 #benchmarks-contenu h3 { margin-top: 1.4rem; }
 
 #benchmarks-contenu svg { display: block; }
+
+.stratégies {
+  margin-top: 2.5rem;
+  padding: 1rem 1.4rem;
+  border: 1px solid var(--bord);
+  border-radius: 8px;
+  max-width: 50rem;
+}
+
+.stratégies h3 { margin-top: 0.2rem; }
+
+.stratégies code {
+  background: var(--panneau);
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+}

@@ -60,8 +60,27 @@ class DuelState:
         self.solver = ClassicSolver()
         self.seed = seed
 
+    def payload(self) -> dict:
+        """État complet du duel ; les mines ne sont exposées que pour les
+        grilles terminées (perdues) — jamais pour une partie en cours (INV1)."""
+        data = {
+            "human": self.human.view().to_json(),
+            "solver": self.solver_game.view().to_json(),
+            "human_state": self.human.state.value,
+            "solver_state": self.solver_game.state.value,
+        }
+        if self.human.state is GameState.LOST and self.human.board is not None:
+            data["human_mines"] = [list(m) for m in sorted(self.human.board.mines)]
+        if self.solver_game.state is GameState.LOST and self.solver_game.board is not None:
+            data["solver_mines"] = [list(m) for m in sorted(self.solver_game.board.mines)]
+        return data
+
     def human_play(self, action: dict):
-        """Applique le coup humain, puis un coup du solveur."""
+        """Applique le coup humain, puis un coup du solveur.
+
+        Si la partie de l'humain est terminée, le solveur continue seul
+        jusqu'au bout (le duel reste intéressant jusqu'à la fin).
+        """
         kind = action.get("kind")
         try:
             if kind == "reveal":
@@ -74,11 +93,21 @@ class DuelState:
                 raise ValueError(f"kind inconnu: {kind!r}")
         except (ValueError, KeyError, TypeError) as err:
             raise ValueError(str(err)) from err
-        self._solver_step()
-        return {"human": self.human.view().to_json(),
-                "solver": self.solver_game.view().to_json(),
-                "human_state": self.human.state.value,
-                "solver_state": self.solver_game.state.value}
+        print(f"[duel seed={self.seed}] humain {kind} "
+              f"({action.get('x')},{action.get('y')}) → {self.human.state.value}",
+              flush=True)
+        if self.human.state is GameState.PLAYING:
+            self._solver_step()
+        else:
+            self._solver_jusqu_au_bout()
+        return self.payload()
+
+    def _solver_jusqu_au_bout(self) -> None:
+        """Le solveur finit sa partie seul (l'humain a terminé la sienne)."""
+        garde = 0
+        while self.solver_game.state is GameState.PLAYING and garde < 10_000:
+            self._solver_step()
+            garde += 1
 
     def _solver_step(self):
         if self.solver_game.state is not GameState.PLAYING:
@@ -91,8 +120,10 @@ class DuelState:
                 self.solver_game.flag(action.x, action.y)
             elif type(action).__name__ == "Unflag":
                 self.solver_game.unflag(action.x, action.y)
-        except ValueError:
-            pass  # coup illégal: le duel continue, jamais de blocage
+            print(f"[duel seed={self.seed}] solveur {action} → "
+                  f"{self.solver_game.state.value}", flush=True)
+        except ValueError as err:
+            print(f"[duel seed={self.seed}] coup solveur refusé: {err}", flush=True)
 
 
 def make_handler(games_dir: str, web_dir: str):
@@ -240,10 +271,13 @@ def make_handler(games_dir: str, web_dir: str):
                     width=int(p.get("w", 9)), height=int(p.get("h", 9)),
                     mines=int(p.get("mines", 10)))
                 duel = état["duel"]
-                return self._json({"human": duel.human.view().to_json(),
-                                   "solver": duel.solver_game.view().to_json(),
-                                   "human_state": duel.human.state.value,
-                                   "solver_state": duel.solver_game.state.value})
+                return self._json(duel.payload())
+
+            if chemin == "/api/duel":
+                duel = état["duel"]
+                if duel is None:
+                    return self._json({"error": "aucun duel en cours"}, 404)
+                return self._json(duel.payload())
 
             return self._json({"error": "route inconnue"}, 404)
 

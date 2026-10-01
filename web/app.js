@@ -22,16 +22,35 @@ function cellHtml(cell, x, y) {
   return '<div class="case cachée" data-x="' + x + '" data-y="' + y + '"></div>';
 }
 
-/* Rendu de la grille complète depuis une vue JSON (format A15/W03). */
-function gridHtml(viewJson) {
+/* Rendu de la grille complète depuis une vue JSON (format A15/W03).
+ * `mines` (optionnel) : liste [x,y] exposée uniquement sur une partie
+ * terminée — rend les bombes visibles. */
+function gridHtml(viewJson, mines) {
+  var bombes = {};
+  (mines || []).forEach(function (m) {
+    bombes[m[0] + "," + m[1]] = true;
+  });
   var lignes = [];
   for (var y = 0; y < viewJson.height; y++) {
     for (var x = 0; x < viewJson.width; x++) {
+      if (bombes[x + "," + y]) {
+        lignes.push('<div class="case minée" data-x="' + x + '" data-y="' + y +
+          '">B</div>');
+        continue;
+      }
       lignes.push(cellHtml(viewJson.grid[y][x], x, y));
     }
   }
   return '<div class="grille" style="grid-template-columns: repeat(' +
     viewJson.width + ', 28px)">' + lignes.join("") + "</div>";
+}
+
+/* Bandeau de fin de partie posé sur une grille (W14).
+ * "lost" → rouge, "won" → vert, "playing" → rien. */
+function overlayBadge(state) {
+  if (state === "lost") return '<div class="bandeau perdu">Perdu</div>';
+  if (state === "won") return '<div class="bandeau gagné">Gagné</div>';
+  return "";
 }
 
 /* Couleur de heatmap : opacité entre 0 et 0.8 selon la probabilité (W08). */
@@ -312,7 +331,8 @@ function initApp() {
   var liveAuto = null;
 
   function liveMAJ(data) {
-    document.getElementById("grille-live").innerHTML = gridHtml(data.view);
+    document.getElementById("grille-live").innerHTML =
+      overlayBadge(data.state) + gridHtml(data.view);
     document.getElementById("live-etat").textContent =
       data.state + " · " + data.moves + " coups";
     document.getElementById("live-justification").textContent =
@@ -363,10 +383,19 @@ function initApp() {
   var duelActif = null;
 
   function duelMAJ(data) {
-    document.getElementById("grille-duel-humain").innerHTML = gridHtml(data.human);
-    document.getElementById("grille-duel-solveur").innerHTML = gridHtml(data.solver);
-    document.getElementById("duel-etat").textContent =
-      "vous: " + data.human_state + " · solveur: " + data.solver_state;
+    document.getElementById("grille-duel-humain").innerHTML =
+      overlayBadge(data.human_state) +
+      gridHtml(data.human, data.human_mines);
+    document.getElementById("grille-duel-solveur").innerHTML =
+      overlayBadge(data.solver_state) +
+      gridHtml(data.solver, data.solver_mines);
+    var message = "vous: " + data.human_state + " · solveur: " + data.solver_state;
+    if (data.human_state === "lost") {
+      message = "Vous avez perdu — le solveur continue sa partie.";
+    } else if (data.human_state === "won") {
+      message = "Vous avez gagné !";
+    }
+    document.getElementById("duel-etat").textContent = message;
   }
 
   document.getElementById("btn-duel-new").addEventListener("click", function () {
@@ -411,5 +440,5 @@ if (typeof document !== "undefined" && typeof fetch !== "undefined") {
 if (typeof module !== "undefined" && module.exports) {
   module.exports = { gridHtml, cellHtml, heatOpacity, eventSummary,
                      benchmarkChart, benchmarkTable, benchmarkSection,
-                     benchmarksSections };
+                     benchmarksSections, overlayBadge };
 }

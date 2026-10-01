@@ -149,6 +149,8 @@ est servi par un petit serveur local qui lit les artefacts (logs JSONL, mémoire
 
 | session 4 | W10/W02/W19 | Améliorations web : /api/benchmarks agrège tous les artefacts par difficulté (tables + graphiques par difficulté), 3 parties d'exemple (une par solveur: classic/rule/random), pied de page avec lien repo GitHub et auteurs (seule exception W19: lien de navigation), bandeau d'erreur si backend injoignable + messages d'erreur par bouton live/duel, repli du répertoire games/ vers celui du dépôt. 180 tests verts. |
 
+| session 4 | W14/W10 | Duel : mines exposées en fin de partie (uniquement sur grille terminée, INV1 préservé), bandeau Perdu/Gagné posé sur chaque grille (duel et live), le solveur finit sa partie seul après la défaite humaine, GET /api/duel, journalisation des coups de duel côté serveur. Benchmarks : section d'explication des stratégies (random/rule/classic). 185 tests verts. |
+
 Règle de mise à jour : chaque tâche terminée ajoute une ligne ici et passe à `[x]` dans sa phase.
 
 Règle de mise à jour : chaque tâche terminée ajoute une ligne ici et passe à `[x]` dans sa phase.

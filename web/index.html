@@ -54,6 +54,45 @@
   <section id="benchmarks" class="panneau">
     <h2>Benchmarks — win-rate par solveur</h2>
     <div id="benchmarks-contenu"><p class="aide">Chargement…</p></div>
+
+    <article class="stratégies">
+      <h3>Les stratégies comparées</h3>
+      <p>
+        <strong>random</strong> — l'étalon bas : il révèle une case cachée au
+        hasard, sans aucun raisonnement. Son win-rate quasi nul mesure ce qu'un
+        joueur gagnerait par pure chance.
+      </p>
+      <p>
+        <strong>rule</strong> — la règle « single-point » uniquement : une case
+        révélée dont toutes les mines voisines sont déjà trouvées rend ses
+        autres voisines sûres (et réciproquement, si le compte restant égale le
+        nombre de voisines cachées, ce sont toutes des mines). Quand cette règle
+        ne suffit plus, il devine au hasard. C'est le niveau d'un joueur humain
+        appliquant la technique la plus courante.
+      </p>
+      <p>
+        <strong>classic</strong> — le solveur complet, 100% déterministe :
+      </p>
+      <ul>
+        <li><strong>règles locales</strong> (single-point, sous-ensembles 1-2-1
+          et 1-2-2-1, propagation des mines connues) ;</li>
+        <li><strong>CSP exact</strong> : les cases frontière sont regroupées en
+          composantes dont toutes les configurations de mines sont énumérées —
+          une case minée dans toutes les solutions est une mine certaine, une
+          case minée dans aucune est un coup sûr ;</li>
+        <li><strong>probabilités exactes</strong> : quand aucune certitude
+          n'existe, la probabilité de mine de chaque case est calculée par
+          combinatoire (frontière + cases inconnues), et le solveur révèle la
+          case la moins risquée ;</li>
+        <li><strong>comptage global</strong> : le nombre total de mines
+          restantes peut prouver des coups sûrs hors de la frontière.</li>
+      </ul>
+      <p>
+        Détail des règles et preuves : <code>docs/classic_solver.md</code>.
+        Les parties perdues en beginner le sont presque toujours sur des
+        devinettes forcées (50/50) impossibles à éviter.
+      </p>
+    </article>
   </section>
 
   <!-- ============ Live (W13) ============ -->

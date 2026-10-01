@@ -217,6 +217,47 @@ class TestServeurLocal(unittest.TestCase):
             code = e.code
         self.assertEqual(code, 400)
 
+    def test_duel_get_etat(self):
+        base = f"{self.base}/api/duel"
+        http_get(f"{base}/new?seed=5&w=5&h=5&mines=3")
+        code, data = http_get(f"{base}")
+        self.assertEqual(code, 200)
+        self.assertIn("human", data)
+        self.assertIn("solver", data)
+        self.assertEqual(data["human_state"], "playing")
+
+    def test_duel_humain_perd_solveur_continue_et_mines_revelees(self):
+        # l'humain révèle une mine: le duel continue, le solveur finit seul,
+        # et les mines de l'humain sont exposées (partie finie, pas de fuite)
+        from demineur.server import DuelState
+
+        état = DuelState(seed=5, width=5, height=5, mines=3)
+        data = état.human_play({"kind": "reveal", "x": 0, "y": 0})
+        self.assertEqual(data["human_state"], "playing")
+        self.assertNotIn("human_mines", data)
+        mine = next(iter(état.human.board.mines))
+        data = état.human_play({"kind": "reveal", "x": mine[0], "y": mine[1]})
+        self.assertEqual(data["human_state"], "lost")
+        self.assertIn("human_mines", data)
+        self.assertIn([mine[0], mine[1]], data["human_mines"])
+        # le solveur a continué jusqu'au bout
+        self.assertIn(data["solver_state"], ("won", "lost"))
+
+    def test_duel_solveur_perd_mines_exposees(self):
+        from demineur.server import DuelState
+
+        état = DuelState(seed=5, width=5, height=5, mines=3)
+        état.human_play({"kind": "reveal", "x": 0, "y": 0})
+        # le solveur touche une mine de sa propre grille (défaite simulée)
+        mine = next(iter(état.solver_game.board.mines))
+        état.solver_game.reveal(*mine)
+        data = état.payload()
+        self.assertEqual(data["solver_state"], "lost")
+        self.assertIn("solver_mines", data)
+        self.assertIn([mine[0], mine[1]], data["solver_mines"])
+        # l'humain encore en jeu n'a PAS ses mines exposées (pas de fuite)
+        self.assertNotIn("human_mines", data)
+
     # ---------------------------------------------------------- W15
     def test_api_inconnue_404(self):
         code, _ = http_get(f"{self.base}/api/nimporte")
