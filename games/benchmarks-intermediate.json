@@ -29,11 +29,11 @@
       "height": 16,
       "mines": 40,
       "seeds": 20,
-      "wins": 11,
-      "losses": 9,
+      "wins": 8,
+      "losses": 12,
       "gave_ups": 0,
-      "avg_moves": 104.45,
-      "win_rate": 0.55
+      "avg_moves": 87.7,
+      "win_rate": 0.4
     },
     "classic": {
       "solver": "classic",
@@ -45,7 +45,7 @@
       "wins": 17,
       "losses": 3,
       "gave_ups": 0,
-      "avg_moves": 95.3,
+      "avg_moves": 95.05,
       "win_rate": 0.85
     }
   }

@@ -15,9 +15,9 @@ from demineur.models import Pos
 from demineur.solvers.base import Solver
 from demineur.solvers.classic.analysis import Constraint, extract_constraints
 from demineur.solvers.classic.csp import (
+    DEFAULT_MAX_CELLS,
     ComponentTooLarge,
     ConfigurationImpossible,
-    DEFAULT_MAX_CELLS,
     classify,
     components,
     enumerate_solutions,
@@ -81,6 +81,19 @@ def analyze(view: GameView) -> Analysis:
     """
     contraintes = extract_constraints(view)
     déduction: Deduction = deduce(contraintes)
+    return analyze_from(view, contraintes, déduction)
+
+
+def analyze_from(
+    view: GameView,
+    contraintes: list[Constraint],
+    déduction: Deduction,
+) -> Analysis:
+    """Prolonge une déduction par règles (R02-R04) jusqu'à l'analyse complète.
+
+    ``ClassicSolver.decide`` n'appelle cette phase coûteuse (CSP R05-R07) que
+    si les règles n'ont rien produit (R18 : budget de performance).
+    """
     analyse = Analysis(
         constraints=contraintes,
         safe=dict(déduction.safe),
@@ -187,47 +200,55 @@ class ClassicSolver(Solver):
             self.last_justification = "aucune case cachée disponible"
             return GiveUp("aucune case cachée disponible")
         try:
-            a = analyze(view)
+            # R18 : phase règles d'abord (rapide) ; le CSP et les probabilités
+            # exactes ne sont calculés que si les règles n'ont rien déduit.
+            contraintes = extract_constraints(view)
+            déduction: Deduction = deduce(contraintes)
+            sûr = {p: j for p, j in déduction.safe.items() if not view.is_flagged(p)}
+            mines = {p: j for p, j in déduction.mines.items() if not view.is_flagged(p)}
+            if not sûr and not mines:
+                a = analyze_from(view, contraintes, déduction)
+                # comptage global (R07) : une case de probabilité nulle est sûre
+                if a.exact:
+                    for pos in cachées:
+                        if pos not in a.safe and a.probabilities.get(pos, 1.0) < 1e-9:
+                            a.safe[pos] = f"R07: comptage global p=0 → {pos} sûr"
+                sûr = {p: j for p, j in a.safe.items() if not view.is_flagged(p)}
+                mines = {p: j for p, j in a.mines.items() if not view.is_flagged(p)}
+            else:
+                a = None
         except (ValueError, ConfigurationImpossible) as err:
             # R12 : fail-fast explicite — bug moteur ou vue corrompue
             self.last_justification = f"R12: configuration impossible — {err}"
             return GiveUp(f"configuration impossible: {err}")
 
-        # comptage global (R07) : une case de probabilité nulle est un coup sûr
-        if a.exact:
-            for pos in cachées:
-                if pos not in a.safe and a.probabilities.get(pos, 1.0) < 1e-9:
-                    a.safe[pos] = f"R07: comptage global p=0 → {pos} sûr"
-
         # R08 : coup sûr en priorité — cascade potentielle maximale
-        if a.safe:
-            cibles = [p for p in a.safe if not view.is_flagged(p)]
-            if cibles:
-                pos = max(cibles, key=lambda p: (_nb_voisins_cachés(view, p), -p[1], -p[0]))
-                self.last_justification = a.safe[pos]
-                return Reveal(*pos)
+        if sûr:
+            pos = max(sûr, key=lambda p: (_nb_voisins_cachés(view, p), -p[1], -p[0]))
+            self.last_justification = sûr[pos]
+            return Reveal(*pos)
         # R08 : sinon drapeau utile sur une mine certaine
-        if a.mines:
-            cibles = [p for p in a.mines if not view.is_flagged(p)]
-            if cibles:
-                pos = min(cibles, key=lambda p: (p[1], p[0]))
-                self.last_justification = a.mines[pos]
-                return Flag(*pos)
+        if mines:
+            pos = min(mines, key=lambda p: (p[1], p[0]))
+            self.last_justification = mines[pos]
+            return Flag(*pos)
         # R09 : devinette — probabilité minimale, voisins révélés, intérieur d'abord
+        probabilités = a.probabilities if a is not None else uniform_probabilities(view)
+        exact = a is not None and a.exact
         pos = min(
             cachées,
             key=lambda p: (
-                round(a.probabilities.get(p, 1.0), 9),
+                round(probabilités.get(p, 1.0), 9),
                 -_nb_voisins_révélés(view, p),
                 _pénalité_bord(view, p),
                 p[1],
                 p[0],
             ),
         )
-        p = a.probabilities.get(pos, 1.0)
+        p = probabilités.get(pos, 1.0)
         self.last_justification = (
             f"R07: guess p={p:.3f} → {pos}"
-            if a.exact
+            if exact
             else f"R17: guess uniforme p={p:.3f} → {pos}"
         )
         return Reveal(*pos)

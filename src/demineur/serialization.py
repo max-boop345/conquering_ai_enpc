@@ -13,7 +13,6 @@ from __future__ import annotations
 from demineur.board import Board
 from demineur.game import Game, GameState
 from demineur.models import Pos
-from demineur.view import GameView, view_from_json
 
 FORMAT_VERSION = 1
 
@@ -71,8 +70,9 @@ def game_from_json(data: dict) -> Game:
         if pos in game._revealed:
             raise ValueError(f"drapeau sur une case révélée: {pos}")
         game._flags.add(pos)
-    if game.board is not None:
-        for pos in game._revealed:
-            pass  # les cases révélées minées ne sont valides qu'en état LOST
+    if game.board is not None and GameState(data["state"]) is not GameState.LOST:
+        # invariant: une case révélée minée n'est valide qu'en état LOST
+        if any(pos in game.board.mines for pos in game._revealed):
+            raise ValueError("case minée révélée hors d'une partie perdue")
     game.state = GameState(data["state"])
     return game

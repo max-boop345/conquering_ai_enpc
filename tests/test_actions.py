@@ -20,7 +20,7 @@ class TestActions(unittest.TestCase):
 
     def test_action_immuable(self):
         a = Reveal(1, 2)
-        with self.assertRaises(Exception):
+        with self.assertRaises(AttributeError):
             a.x = 3
 
     def test_egalite_structuelle(self):

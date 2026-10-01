@@ -14,7 +14,6 @@ from dataclasses import dataclass, field
 from demineur.actions import Action, Flag, GiveUp, Reveal, Unflag, action_to_json
 from demineur.game import Game, GameState
 from demineur.solvers.base import Solver
-from demineur.view import GameView
 
 RESULT_OK = "ok"
 RESULT_ILLEGAL = "illegal"

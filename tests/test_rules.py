@@ -44,7 +44,7 @@ class TestExtractionContraintes(unittest.TestCase):
 
     def test_contrainte_immuable(self):
         c = Constraint(frozenset({(0, 0)}), 1)
-        with self.assertRaises(Exception):
+        with self.assertRaises(AttributeError):
             c.count = 2
 
 

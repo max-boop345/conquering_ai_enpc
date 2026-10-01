@@ -48,6 +48,26 @@ class TestSolve(unittest.TestCase):
         ])
         self.assertIn(code, (0, 1))
 
+    def test_solve_sauvegarde_artefact(self):
+        # l'artefact JSONL produit est relu par load_game (replay/serve)
+        import os
+        import tempfile
+
+        from demineur.artifacts import load_game
+
+        with tempfile.TemporaryDirectory() as d:
+            code, sortie = exécute([
+                "solve", "--seed", "9", "--difficulty", "beginner",
+                "--method", "classic", "--save", d,
+            ])
+            self.assertEqual(code, 0)
+            fichiers = [f for f in os.listdir(d) if f.endswith(".jsonl")]
+            self.assertEqual(len(fichiers), 1)
+            header, events, result = load_game(os.path.join(d, fichiers[0]))
+            self.assertEqual(header["solver"], "classic")
+            self.assertGreater(len(events), 0)
+            self.assertIn("sauvegardée", sortie)
+
 
 class TestBenchmarkCLI(unittest.TestCase):
     def test_benchmark_petit(self):
@@ -59,7 +79,8 @@ class TestBenchmarkCLI(unittest.TestCase):
         self.assertIn("win-rate", sortie.lower())
 
     def test_benchmark_sauvegarde(self):
-        import os, tempfile
+        import os
+        import tempfile
         with tempfile.TemporaryDirectory() as d:
             chemin = os.path.join(d, "bench.md")
             code, _ = exécute([

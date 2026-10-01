@@ -14,7 +14,6 @@ from __future__ import annotations
 from collections import Counter
 
 from demineur.models import Pos
-from demineur.solvers.classic.analysis import Constraint
 from demineur.view import GameView
 
 

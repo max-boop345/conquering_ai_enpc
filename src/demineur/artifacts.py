@@ -18,7 +18,8 @@ FORMAT_VERSION = 1
 def save_game(directory: str, runner, meta: dict) -> str:
     """Écrit la partie complète (entête + événements + résultat) en JSONL."""
     os.makedirs(directory, exist_ok=True)
-    identifiant = meta.get("id") or f"game-{int(time.time() * 1000)}-{runner.game.width}x{runner.game.height}"
+    est = f"{int(time.time() * 1000)}-{runner.game.width}x{runner.game.height}"
+    identifiant = meta.get("id") or f"game-{est}"
     header = {
         "version": FORMAT_VERSION,
         "kind": "game_header",
@@ -67,7 +68,7 @@ def load_game(path: str) -> tuple[dict, list[dict], dict]:
     Lève ``ValueError`` sur fichier corrompu, version inconnue ou ordre invalide.
     """
     with open(path, encoding="utf-8") as f:
-        lignes = [l.strip() for l in f if l.strip()]
+        lignes = [ligne.strip() for ligne in f if ligne.strip()]
     if not lignes:
         raise ValueError("fichier vide")
     header = _parse_ligne(1, lignes[0])

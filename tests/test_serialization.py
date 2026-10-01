@@ -3,9 +3,10 @@
 import json
 import unittest
 
-from demineur.game import Game, GameState
+from demineur.game import Game
 from demineur.presets import get_preset, list_presets
-from demineur.serialization import game_from_json, game_to_json, view_from_json
+from demineur.serialization import game_from_json, game_to_json
+from demineur.view import view_from_json
 
 
 class TestSerialisation(unittest.TestCase):

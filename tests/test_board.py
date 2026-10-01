@@ -3,7 +3,7 @@
 import unittest
 
 from demineur.board import Board
-from demineur.models import Cell, CellState, Pos
+from demineur.models import Cell, CellState
 
 
 class TestCell(unittest.TestCase):
@@ -11,7 +11,7 @@ class TestCell(unittest.TestCase):
 
     def test_cell_immuable(self):
         cell = Cell(x=1, y=2, state=CellState.HIDDEN, is_mine=False, adjacent_mines=0)
-        with self.assertRaises(Exception):
+        with self.assertRaises(AttributeError):
             cell.x = 5
 
     def test_cell_valeurs_par_defaut(self):

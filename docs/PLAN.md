@@ -145,6 +145,8 @@ est servi par un petit serveur local qui lit les artefacts (logs JSONL, mémoire
 | session 2 | W01→W20 | Serveur local stdlib 127.0.0.1 (W01/W16), API JSON sur artefacts + analyse par coup (W02), schéma partagé A15 (W03), frontend statique sans bundler (W04), grille/replay/justifications/heatmap/CSP/benchmarks (W05-W10), mode live polling local (W13/W20), duel web (W14), tests API + frontend node (W15), demineur serve --open (W17), doc web (W18), assets 100% locaux testés (W19). |
 | session 2 | G03/G05/G06 | docs/benchmarks.md (30 seeds beginner : classic 96,7%, rule 73,3%, random 0%), protocole d'agent, architecture. 176 tests verts, 6 commits atomiques. |
 
+| session 3 | R18/R14/C13 | Correction des points de KNOWN_ERRORS.md : évaluation paresseuse de l'analyse (CSP/probabilités seulement si les règles ne déduisent rien — pire coup expert 0.14s, marge ×7 sur le plafond), lint ruff 0 erreur (31 corrigés), option solve --save JSONL, fallback de rule seedé par la partie (benchmarks strictement déterministes), validation case minée révélée en game_from_json. 177 tests verts. |
+
 Règle de mise à jour : chaque tâche terminée ajoute une ligne ici et passe à `[x]` dans sa phase.
 
 Règle de mise à jour : chaque tâche terminée ajoute une ligne ici et passe à `[x]` dans sa phase.

@@ -8,7 +8,7 @@ solveur joue un coup sur sa propre grille.
 
 from __future__ import annotations
 
-from demineur.actions import Action, Flag, Reveal, Unflag
+from demineur.actions import Flag, Reveal, Unflag
 from demineur.game import Game, GameState
 from demineur.render import render_view
 from demineur.solvers.base import Solver
@@ -18,7 +18,7 @@ def _grilles_côte_à_côte(vue_h, vue_s) -> str:
     """Deux grilles texte juxtaposées avec un séparateur."""
     lignes_h = render_view(vue_h).splitlines()
     lignes_s = render_view(vue_s).splitlines()
-    largeur = max(len(l) for l in lignes_h) if lignes_h else 0
+    largeur = max((len(ligne) for ligne in lignes_h), default=0)
     sortie = []
     for i in range(max(len(lignes_h), len(lignes_s))):
         gauche = lignes_h[i] if i < len(lignes_h) else ""

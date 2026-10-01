@@ -67,5 +67,5 @@ class RuleSolver(Solver):
             self.last_justification = "aucune case cachée disponible"
             return GiveUp("aucune case cachée disponible")
         pos = self._rng.choice(candidates)
-        self.last_justification = f"aucune règle applicable → guess aléatoire"
+        self.last_justification = "aucune règle applicable → guess aléatoire"
         return Reveal(*pos)

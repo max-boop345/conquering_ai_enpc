@@ -1,86 +1,71 @@
 # Known errors
 
-Erreurs et limitations connues, constatées lors de la vérification finale des
-fonctionnalités (environnement de test : Python 3.13, Linux, machine virtuelle
-partagée — les mesures de performance peuvent varier selon la charge).
+Erreurs et limitations connues. Bilan initial constaté lors de la vérification
+finale (Python 3.13, Linux, VM partagée), puis **corrections apportées en
+session 3** — état de chaque point ci-dessous. Environnement de référence :
+`PYTHONPATH=src python3 -m unittest discover -s tests` = 177 tests verts,
+`ruff check src tests` = 0 erreur.
 
-## 1. Budget de performance dépassé en difficulté expert (2 tests en échec)
+## 1. Budget de performance expert — CORRIGÉ (session 3)
 
-La résolution d'une grille experte (30x16, 99 mines) avec `ClassicSolver`
-dépasse les plafonds fixés par le plan :
+Cause identifiée : le solveur calculait le CSP et les probabilités exactes à
+chaque coup, même quand les règles simples (R02-R04) suffisaient. Le calcul
+coûteux n'est plus déclenché que lorsque les règles ne déduisent rien
+(évaluation paresseuse dans `ClassicSolver.decide`, `analyze_from`).
 
-- `tests/test_regressions.py::TestBudgetPerformance::test_partie_expert_par_coup`
-  — échec : pire coup observé ~1.14s, plafond R18 de 1.0s/coup dépassé.
-- `tests/test_classic_solver.py::TestBoucleComplete::test_expert_termine_rapidement`
-  — échec : partie experte seed=1 résolue en ~18.3s, plafond de 10s dépassé.
+Mesures après correction (Mac M-series, Python 3.14) :
 
-Commandes de reproduction :
-
-```bash
-python -m pytest tests/test_regressions.py::TestBudgetPerformance tests/test_classic_solver.py::TestBoucleComplete -q
+```
+expert seed=1: gagnée, total 4.8s,  pire coup 0.094s
+expert seed=2: gagnée, total 2.5s,  pire coup 0.054s
+expert seed=3: gagnée, total 13.2s, pire coup 0.137s
 ```
 
-Les 176 autres tests passent (174 passed + 2 failed ci-dessus). En difficulté
-beginner/intermediate, aucun dépassement n'a été observé. Cause probable :
-coût du calcul exact de probabilités par combinatoire sur les grandes
-composantes CSP en fin de partie experte. Piste d'optimisation : plafonner
-le travail combinatoire ou mettre en cache les dénombrements par composante.
+Le plafond R18 (1.0 s/coup) garde une marge ×7 environ. Win-rates inchangés
+(classic 96.7 % / 85 % / 45 % en beginner / intermediate / expert). Les deux
+tests concernés passent désormais avec ~30 % de marge sur la machine de
+référence ; sur un hôte nettement plus lent, la marge reste la principale
+protection — les plafonds du test sont conservés volontairement serrés.
 
-Note : la performance dépend de la machine ; ces seuils peuvent repasser en
-dessous des plafonds sur un hôte plus rapide. Ce n'est pas un défaut de
-correction — le solveur gagne bien les parties expertes (ex. seed=1 gagnée
-en 295 coups), il est seulement trop lent par rapport aux plafonds choisis.
+## 2. Lint ruff — CORRIGÉ (session 3)
 
-## 2. Lint : 31 avertissements ruff sur `src` et `tests`
+31 avertissements corrigés : 14 auto-fixables (imports, uplift) + 17 manuels
+(E501 lignes longues, E741 variables ambiguës, F401/F841 imports et variables
+inutilisés, B017 exceptions trop aveugles → `AttributeError`, B904 chaînage
+d'exceptions, B007 boucle morte remplacée par une validation réelle dans
+`serialization.py`). `ruff check src tests` : **All checks passed**.
 
-`ruff check src tests` (config du dépôt, line-length 100) rapporte 31
-erreurs, dont 15 auto-fixables. Principales catégories :
+## 3. CLI solve sans --save — CORRIGÉ (session 3)
 
-- `E501` lignes trop longues (ex. `src/demineur/artifacts.py:21`) ;
-- `E741` nom de variable ambigu `l` (`src/demineur/artifacts.py:70`) ;
-- `F401` imports inutilisés (ex. `demineur.actions.Action` dans
-  `src/demineur/duel.py:11`) ;
-- le reste : tri d'imports (`I`), uplift syntaxique (`UP`), etc.
+`demineur solve --save <répertoire>` écrit l'artefact JSONL (via
+`artifacts.save_game`), relisible par `demineur replay` et servi par
+`demineur serve`. Testé (`tests/test_cli.py::test_solve_sauvegarde_artefact`).
 
-Commande :
+## 4. Noms d'options CLI — clarifié (pas un bug)
 
-```bash
-ruff check src tests
-```
+Les noms réels et cohérents avec `--help` : `solve --method {classic,random,rule}`
+et `benchmark --seeds N --solvers liste`. Aucun document du dépôt n'utilise de
+nom obsolète (vérifié). Les supports de formation externes doivent se fier à
+`demineur <cmd> --help`.
 
-## 3. CLI solve : pas d'option `--save` pour les artefacts JSONL
+## 5. Benchmark rule à 0% en expert — comportement attendu, documenté
 
-`demineur solve` ne propose pas d'option d'écriture d'artefact
-(`--save`/`--out`). Le replay (`demineur replay <fichier>.jsonl`) ne peut
-donc lire que les artefacts déjà présents dans `games/` (produits par les
-tests/benchmarks). Replay lui-même fonctionne (vérifié sur
-`games/game-1790855092351-9x9.jsonl`).
+`rule` (single-point uniquement, sans guess probabiliste) perd en expert :
+c'est le rôle d'un étalon bas. Documenté dans `docs/benchmarks.md`.
+Corrigé au passage : le fallback aléatoire de `rule` est désormais **seedé
+par la partie** dans le harnais — les benchmarks `rule` sont strictement
+déterministes (deux exécutions sur les mêmes seeds = tables identiques).
+Nouvelle référence : rule 83.3 % / 40 % / 0 % (beginner / intermediate / expert).
 
-## 4. CLI : noms d'options source de confusion (pas un bug bloquant)
+## Amélioration associée (constatée en corrigeant le point 1)
 
-Le solveur se choisit via `--method {classic,random,rule}` (et non
-`--solver`), et le benchmark prend `--seeds N` / `--solvers liste` (et non
-`--n`/`--method`). Ces noms sont cohérents avec l'aide (`--help`) mais
-diffèrent de ceux utilisés dans certains documents du dépôt ; toute
-formation les utilisant tels quels produit une erreur argparse « unrecognized
-arguments ». Vérifier systématiquement `demineur <cmd> --help`.
+`serialization.game_from_json` validate désormais qu'une case minée révélée
+n'apparaît que dans une partie perdue (invariant moteur, fail-fast plutôt que
+boucle silencieuse).
 
-## 5. Benchmark expert : win-rate du solveur `rule` à 0% sur 3 seeds
+## Vérifications passées (inchangées, aucune action requise)
 
-Sur `demineur benchmark --difficulty expert --seeds 3`, le solveur `rule`
-(single-point uniquement, sans guess probabiliste) perd ses 3 parties
-(40 coups moyens). C'est un comportement attendu — le solveur `rule` ne
-devine pas de manière optimale et n'a pas été conçu pour gagner en expert —
-mais le win-rate à 0% est à garder en tête si on l'utilise hors beginner.
-
-## Vérifications passées (aucune action requise)
-
-- `demineur new` (beginner/intermediate/expert, seeds, dimensions custom) ;
-- `demineur solve` classic/rule/random avec `--explain` ;
-- `demineur benchmark` beginner + expert, sortie table Markdown et artefact
-  JSON (`--json`) consommé par `demineur serve` ;
-- `demineur play` et `demineur duel` (abandon propre via `q`) ;
-- `demineur replay` sur artefact JSONL existant ;
-- `demineur serve` : serveur local 127.0.0.1 (stdlib), page `/` et API
-  `/api/games`, `/api/benchmarks` répondent 200 ;
-- tests frontend + serveur (`test_frontend.py`, `test_server.py`) : 23 passed.
+- `demineur new`, `solve` (classic/rule/random, `--explain`), `benchmark`
+  (tables Markdown + artefact `--json`), `play`, `duel`, `replay`, `serve` ;
+- tests frontend + serveur (`test_frontend.py`, `test_server.py`) ;
+- `pip install -e .` : point d'entrée `demineur` fonctionnel.

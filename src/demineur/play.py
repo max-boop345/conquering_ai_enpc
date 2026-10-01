@@ -34,7 +34,8 @@ def run(game: Game, input_stream, output_stream) -> tuple[Game, list[dict]]:
             x, y = int(morceaux[1]), int(morceaux[2])
             if morceaux[0] == "r":
                 reveals = game.reveal(x, y)
-                journal.append({"move": numero, "action": ["reveal", x, y], "revealed": len(reveals)})
+                journal.append({"move": numero, "action": ["reveal", x, y],
+                                "revealed": len(reveals)})
             elif morceaux[0] == "f":
                 game.flag(x, y)
                 journal.append({"move": numero, "action": ["flag", x, y], "revealed": 0})
@@ -56,7 +57,8 @@ def run(game: Game, input_stream, output_stream) -> tuple[Game, list[dict]]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="demineur.play", description="Démineur jouable au clavier")
+    parser = argparse.ArgumentParser(
+        prog="demineur.play", description="Démineur jouable au clavier")
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--w", type=int, default=9)
     parser.add_argument("--h", type=int, default=9)

@@ -3,7 +3,6 @@
 import unittest
 
 from demineur.game import Game, GameState
-from demineur.view import GameView
 
 
 class TestGameView(unittest.TestCase):

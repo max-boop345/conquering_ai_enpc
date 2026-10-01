@@ -12,13 +12,12 @@ import json
 import os
 import posixpath
 import re
-import threading
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from demineur.artifacts import list_games, load_game
 from demineur.game import Game, GameState
-from demineur.runner import GameRunner, MoveEvent
+from demineur.runner import GameRunner
 from demineur.solvers.classic import ClassicSolver
 from demineur.view import view_from_json
 
@@ -74,7 +73,7 @@ class DuelState:
             else:
                 raise ValueError(f"kind inconnu: {kind!r}")
         except (ValueError, KeyError, TypeError) as err:
-            raise ValueError(str(err))
+            raise ValueError(str(err)) from err
         self._solver_step()
         return {"human": self.human.view().to_json(),
                 "solver": self.solver_game.view().to_json(),
@@ -285,7 +284,8 @@ def make_handler(games_dir: str, web_dir: str):
     return Handler
 
 
-def make_server(games_dir: str, port: int = 8765, web_dir: str | None = None) -> ThreadingHTTPServer:
+def make_server(games_dir: str, port: int = 8765,
+                web_dir: str | None = None) -> ThreadingHTTPServer:
     """Crée le serveur (W01). Bind 127.0.0.1 forcé (W16, INV5)."""
     if web_dir is None:
         web_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),

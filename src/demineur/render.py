@@ -40,4 +40,5 @@ def render_view(view: GameView, ansi: bool = False) -> str:
 
 
 def render_header(view: GameView) -> str:
-    return f"grille {view.width}x{view.height} — mines restantes: {view.mines_count - len(view.flags)}"
+    restantes = view.mines_count - len(view.flags)
+    return f"grille {view.width}x{view.height} — mines restantes: {restantes}"

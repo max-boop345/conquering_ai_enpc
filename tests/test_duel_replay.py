@@ -1,7 +1,6 @@
 """Tests des modes duel (F03) et spectateur (F04)."""
 
 import io
-import os
 import tempfile
 import unittest
 
@@ -34,8 +33,8 @@ class TestDuel(unittest.TestCase):
         solveur = Game(width=5, height=5, mines_count=3, seed=4)
         entrée = io.StringIO("r 0 0\nq\n")
         sortie = io.StringIO()
-        résultat = run_duel(humain, solveur, ClassicSolver(),
-                            input_stream=entrée, output_stream=sortie)
+        run_duel(humain, solveur, ClassicSolver(),
+                 input_stream=entrée, output_stream=sortie)
         self.assertTrue(len(humain.revealed) > 0)
         self.assertTrue(len(solveur.revealed) > 0)  # le solveur a joué au moins un coup
 

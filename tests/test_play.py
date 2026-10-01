@@ -18,7 +18,7 @@ class TestRenduTexte(unittest.TestCase):
         texte = render_view(self.game.view())
         lignes = texte.splitlines()
         self.assertEqual(len(lignes), 5)
-        self.assertTrue(all(len(l) == 5 for l in lignes))
+        self.assertTrue(all(len(ligne) == 5 for ligne in lignes))
 
     def test_symboles(self):
         texte = render_view(self.game.view())

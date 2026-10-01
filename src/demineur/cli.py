@@ -67,6 +67,13 @@ def cmd_solve(argv) -> int:
                   f"{',' + str(coup['y']) if 'y' in coup else ''}) — {just}")
     état = {"won": "gagné", "lost": "perdu", "playing": "abandonné"}[résultat.state.value]
     print(f"résultat: {état} en {résultat.moves} coups")
+    if argv.save:
+        from demineur.artifacts import save_game
+        chemin = save_game(argv.save, runner, meta={
+            "seed": argv.seed, "solver": solver.name,
+            "difficulty": argv.difficulty or "custom",
+        })
+        print(f"partie sauvegardée dans {chemin} (lisible par demineur replay/serve)")
     return 0 if résultat.won else 1
 
 
@@ -162,6 +169,8 @@ def _parser() -> argparse.ArgumentParser:
     p_solve.add_argument("--method", default="classic", choices=["classic", "random", "rule"])
     p_solve.add_argument("--explain", action="store_true",
                          help="afficher la justification de chaque coup (R11)")
+    p_solve.add_argument("--save", default=None,
+                         help="sauvegarder la partie en JSONL (répertoire, ex: games)")
     p_solve.set_defaults(fn=cmd_solve)
 
     p_bench = sub.add_parser("benchmark", help="win-rate par solveur sur N seeds")

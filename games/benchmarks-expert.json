@@ -32,7 +32,7 @@
       "wins": 0,
       "losses": 20,
       "gave_ups": 0,
-      "avg_moves": 114.95,
+      "avg_moves": 97.05,
       "win_rate": 0.0
     },
     "classic": {
@@ -45,7 +45,7 @@
       "wins": 9,
       "losses": 11,
       "gave_ups": 0,
-      "avg_moves": 233.0,
+      "avg_moves": 239.8,
       "win_rate": 0.45
     }
   }

@@ -16,8 +16,9 @@ class TestViewTexte(unittest.TestCase):
         texte = view_to_text(self.game.view(), historique=[["reveal", 0, 0], ["flag", 4, 4]])
         lignes = texte.splitlines()
         # entête + 5 lignes de grille + historique
-        self.assertTrue(any("5x5" in l for l in lignes))
-        self.assertEqual(sum(1 for l in lignes if len(l) == 5 and set(l) <= set(".F012345678")), 5)
+        self.assertTrue(any("5x5" in ligne for ligne in lignes))
+        self.assertEqual(sum(1 for ligne in lignes
+                       if len(ligne) == 5 and set(ligne) <= set(".F012345678")), 5)
         self.assertIn("reveal 0 0", texte)
         self.assertIn("flag 4 4", texte)
 

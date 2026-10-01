@@ -69,7 +69,9 @@ def run_benchmark(
         for seed in seeds:
             jeu = Game(preset.width, preset.height, preset.mines, seed=seed)
             runner = GameRunner(jeu)
-            solver = classe() if nom != "random" else classe(seed=seed)
+            # random et rule ont un fallback aléatoire: seedé par la partie
+            # pour un benchmark strictement déterministe (C13)
+            solver = classe(seed=seed) if nom in ("random", "rule") else classe()
             résultat = runner.run(solver)
             coups_total += résultat.moves
             if résultat.won:
