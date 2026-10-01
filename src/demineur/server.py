@@ -31,34 +31,77 @@ _TYPES = {
 
 
 class LiveState:
-    """Une partie en direct pilotée par le solveur classique (W13)."""
+    """Une partie en direct pilotée par le solveur classique (W13).
 
-    def __init__(self, seed, width, height, mines):
+    Une fois terminée, la partie est archivée dans ``games_dir`` (si fourni)
+    et apparaît dans l'onglet Replay du site.
+    """
+
+    def __init__(self, seed, width, height, mines, games_dir: str | None = None):
         self.game = Game(width, height, mines, seed=seed)
         self.runner = GameRunner(self.game)
         self.solver = ClassicSolver()
         self.seed = seed
+        self.games_dir = games_dir
         self.last_event = None
+        self._sauvegardée = False
+
+    def _archive(self) -> None:
+        if self.games_dir is None or self._sauvegardée:
+            return
+        self._sauvegardée = True
+        from demineur.artifacts import save_game
+        save_game(self.games_dir, self.runner, meta={
+            "id": f"live-seed{self.seed}", "seed": self.seed,
+            "solver": "classic", "origin": "live",
+        })
+        print(f"[live seed={self.seed}] partie archivée dans {self.games_dir}",
+              flush=True)
 
     def step(self):
         """Le solveur joue un coup ; retourne le dernier événement."""
         if self.game.state is not GameState.PLAYING or self.runner.gave_up:
+            self._archive()
             return self.last_event
         vue = self.game.view()
         action = self.solver.decide(vue)
         event = self.runner.apply(action, self.solver.last_justification)
         self.last_event = event
+        if self.game.state is not GameState.PLAYING or self.runner.gave_up:
+            self._archive()
         return event
 
 
 class DuelState:
-    """Humain vs solveur sur la même grille seedée (W14)."""
+    """Humain vs solveur sur la même grille seedée (W14).
 
-    def __init__(self, seed, width, height, mines):
+    Chaque camp est enregistré séparément (événements B10) ; à la fin de sa
+    partie, chaque camp est archivé dans ``games_dir`` (onglet Replay).
+    """
+
+    def __init__(self, seed, width, height, mines, games_dir: str | None = None):
         self.human = Game(width, height, mines, seed=seed)
         self.solver_game = Game(width, height, mines, seed=seed)
         self.solver = ClassicSolver()
         self.seed = seed
+        self.games_dir = games_dir
+        self.human_runner = GameRunner(self.human)
+        self.solver_runner = GameRunner(self.solver_game)
+        self._sauvés = set()
+
+    def _archive(self, camp: str) -> None:
+        if self.games_dir is None or camp in self._sauvés:
+            return
+        self._sauvés.add(camp)
+        from demineur.artifacts import save_events
+        jeu = self.human if camp == "humain" else self.solver_game
+        runner = self.human_runner if camp == "humain" else self.solver_runner
+        save_events(self.games_dir, jeu, list(runner.events), meta={
+            "id": f"duel-seed{self.seed}-{camp}", "seed": self.seed,
+            "solver": "humain" if camp == "humain" else "classic",
+            "origin": f"duel-{camp}",
+        })
+        print(f"[duel seed={self.seed}] partie {camp} archivée", flush=True)
 
     def payload(self) -> dict:
         """État complet du duel ; les mines ne sont exposées que pour les
@@ -79,26 +122,33 @@ class DuelState:
         """Applique le coup humain, puis un coup du solveur.
 
         Si la partie de l'humain est terminée, le solveur continue seul
-        jusqu'au bout (le duel reste intéressant jusqu'à la fin).
+        jusqu'au bout (le duel reste intéressant jusqu'à la fin). Chaque camp
+        est archivé à la fin de sa partie.
         """
+        from demineur.actions import Flag, Reveal, Unflag
+
         kind = action.get("kind")
+        if kind == "reveal":
+            coup = Reveal
+        elif kind == "flag":
+            coup = Flag
+        elif kind == "unflag":
+            coup = Unflag
+        else:
+            raise ValueError(f"kind inconnu: {kind!r}")
         try:
-            if kind == "reveal":
-                self.human.reveal(int(action["x"]), int(action["y"]))
-            elif kind == "flag":
-                self.human.flag(int(action["x"]), int(action["y"]))
-            elif kind == "unflag":
-                self.human.unflag(int(action["x"]), int(action["y"]))
-            else:
-                raise ValueError(f"kind inconnu: {kind!r}")
+            event = self.human_runner.apply(coup(int(action["x"]), int(action["y"])))
         except (ValueError, KeyError, TypeError) as err:
             raise ValueError(str(err)) from err
+        if event.result != "ok":
+            raise ValueError(event.detail or "coup illégal")
         print(f"[duel seed={self.seed}] humain {kind} "
               f"({action.get('x')},{action.get('y')}) → {self.human.state.value}",
               flush=True)
         if self.human.state is GameState.PLAYING:
             self._solver_step()
         else:
+            self._archive("humain")
             self._solver_jusqu_au_bout()
         return self.payload()
 
@@ -108,22 +158,24 @@ class DuelState:
         while self.solver_game.state is GameState.PLAYING and garde < 10_000:
             self._solver_step()
             garde += 1
+        if self.solver_game.state is not GameState.PLAYING:
+            self._archive("solveur")
 
     def _solver_step(self):
         if self.solver_game.state is not GameState.PLAYING:
             return
+        if self.solver_runner.gave_up:
+            return
         action = self.solver.decide(self.solver_game.view())
-        try:
-            if type(action).__name__ == "Reveal":
-                self.solver_game.reveal(action.x, action.y)
-            elif type(action).__name__ == "Flag":
-                self.solver_game.flag(action.x, action.y)
-            elif type(action).__name__ == "Unflag":
-                self.solver_game.unflag(action.x, action.y)
+        event = self.solver_runner.apply(action, self.solver.last_justification)
+        if event.result == "ok":
             print(f"[duel seed={self.seed}] solveur {action} → "
                   f"{self.solver_game.state.value}", flush=True)
-        except ValueError as err:
-            print(f"[duel seed={self.seed}] coup solveur refusé: {err}", flush=True)
+            if self.solver_game.state is not GameState.PLAYING:
+                self._archive("solveur")
+        else:
+            print(f"[duel seed={self.seed}] coup solveur refusé: {event.detail}",
+                  flush=True)
 
 
 def make_handler(games_dir: str, web_dir: str):
@@ -239,7 +291,7 @@ def make_handler(games_dir: str, web_dir: str):
                 état["live"] = LiveState(
                     seed=int(p.get("seed", 0)),
                     width=int(p.get("w", 9)), height=int(p.get("h", 9)),
-                    mines=int(p.get("mines", 10)))
+                    mines=int(p.get("mines", 10)), games_dir=games_dir)
                 live = état["live"]
                 return self._json({"state": live.game.state.value,
                                    "view": live.game.view().to_json()})
@@ -269,7 +321,7 @@ def make_handler(games_dir: str, web_dir: str):
                 état["duel"] = DuelState(
                     seed=int(p.get("seed", 0)),
                     width=int(p.get("w", 9)), height=int(p.get("h", 9)),
-                    mines=int(p.get("mines", 10)))
+                    mines=int(p.get("mines", 10)), games_dir=games_dir)
                 duel = état["duel"]
                 return self._json(duel.payload())
 
@@ -325,6 +377,12 @@ def make_handler(games_dir: str, web_dir: str):
                         "safe": sorted(a.safe),
                         "mines": sorted(a.mines),
                         "components": a.components,
+                        # contraintes R01 complètes : la frontière active,
+                        # même quand les règles l'ont déjà résolue
+                        "constraints": [
+                            {"cells": sorted(c.cells), "count": c.count}
+                            for c in a.constraints
+                        ],
                         "exact": a.exact,
                     })
             return self._json({"error": "partie inconnue"}, 404)

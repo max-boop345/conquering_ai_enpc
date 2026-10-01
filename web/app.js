@@ -53,10 +53,18 @@ function overlayBadge(state) {
   return "";
 }
 
-/* Couleur de heatmap : opacité entre 0 et 0.8 selon la probabilité (W08). */
-function heatOpacity(p) {
-  if (p === null || p === undefined) return 0;
-  return Math.max(0.05, Math.min(0.8, p * 0.8));
+/* Couleur de heatmap (W08) : vert (probabilité nulle) → rouge (probabilité
+ * forte). La teinte couvre [0, 0.5] pour bien distinguer les valeurs usuelles
+ * (densité de mines ~0.12 en beginner, 50/50 = 0.5). */
+function heatColor(p) {
+  var t = Math.min(Math.max(p || 0, 0), 0.5) / 0.5;
+  return "hsl(" + Math.round(120 * (1 - t)) + ", 75%, 45%)";
+}
+
+/* Texte de heatmap : pourcentage affiché dans la case (vide si ~0). */
+function heatText(p) {
+  if (p === null || p === undefined || p < 0.005) return "";
+  return Math.round(p * 100) + "%";
 }
 
 /* Résumé d'un événement B10 pour le panneau de justification (W07). */
@@ -175,6 +183,8 @@ function initApp() {
         p.classList.remove("actif");
       });
       document.getElementById(btn.dataset.tab).classList.add("actif");
+      /* les parties jouées (live, duel) apparaissent sans recharger */
+      if (btn.dataset.tab === "replay") partiesListe();
     });
   });
 
@@ -228,8 +238,9 @@ function initApp() {
     var id = état.partie.header.id;
     api("/api/games/" + id + "/analysis/" + état.coup).then(function (a) {
       document.querySelectorAll("#grille-replay .case").forEach(function (el) {
+        el.classList.remove("chauffe", "csp", "mine-déduite", "frontière", "sure");
         el.style.removeProperty("background");
-        el.classList.remove("chauffe", "csp", "mine-déduite");
+        if (el.classList.contains("cachée")) el.innerHTML = "";
       });
       if (document.getElementById("opt-heatmap").checked) {
         Object.keys(a.probabilities).forEach(function (clé) {
@@ -238,23 +249,25 @@ function initApp() {
             '#grille-replay .case[data-x="' + clé.split(",")[0] +
             '"][data-y="' + clé.split(",")[1] + '"]');
           if (el && el.classList.contains("cachée")) {
-            el.classList.add("chauffe");
-            el.style.background = "rgba(247, 118, 142, " + heatOpacity(p) + ")";
+            el.style.background = heatColor(p);
+            el.innerHTML = '<span class="p">' + heatText(p) + "</span>";
           }
         });
       }
       if (document.getElementById("opt-csp").checked) {
-        a.components.forEach(function (comp) {
-          comp.cells.forEach(function (pos) {
+        /* la frontière active : toutes les contraintes R01 (W09) */
+        (a.constraints || []).forEach(function (contrainte) {
+          contrainte.cells.forEach(function (pos) {
             var el = document.querySelector(
               '#grille-replay .case[data-x="' + pos[0] + '"][data-y="' + pos[1] + '"]');
-            if (el) el.classList.add("csp");
+            if (el) el.classList.add("frontière");
           });
         });
+        /* les déductions : coups sûrs (vert) et mines certaines (rouge) */
         a.safe.forEach(function (pos) {
           var el = document.querySelector(
             '#grille-replay .case[data-x="' + pos[0] + '"][data-y="' + pos[1] + '"]');
-          if (el) el.classList.add("csp");
+          if (el) el.classList.add("sure");
         });
         a.mines.forEach(function (pos) {
           var el = document.querySelector(
@@ -438,7 +451,7 @@ if (typeof document !== "undefined" && typeof fetch !== "undefined") {
 
 /* export pour les tests (node) */
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { gridHtml, cellHtml, heatOpacity, eventSummary,
+  module.exports = { gridHtml, cellHtml, heatColor, heatText, eventSummary,
                      benchmarkChart, benchmarkTable, benchmarkSection,
                      benchmarksSections, overlayBadge };
 }

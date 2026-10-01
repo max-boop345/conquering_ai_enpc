@@ -15,6 +15,21 @@ import time
 FORMAT_VERSION = 1
 
 
+def save_events(directory: str, game, events, meta: dict) -> str:
+    """Écrit une partie (jeu + liste d'événements B10) en JSONL.
+
+    Variante de ``save_game`` pour les parties pilotées hors ``GameRunner``
+    (duel web : humain et solveur enregistrés séparément).
+    """
+    class _Porte:
+        pass
+
+    porte = _Porte()
+    porte.game = game
+    porte.events = events
+    return save_game(directory, porte, meta)
+
+
 def save_game(directory: str, runner, meta: dict) -> str:
     """Écrit la partie complète (entête + événements + résultat) en JSONL."""
     os.makedirs(directory, exist_ok=True)

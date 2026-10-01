@@ -131,20 +131,17 @@ aside { min-width: 240px; }
 .case.n7 { color: #ff9e64; }
 .case.n8 { color: #a9b1d6; }
 
-/* heatmap (W08) : opacité proportionnelle à la probabilité de mine */
-.case.chauffe::after {
-  content: "";
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  border-radius: 3px;
-  background: var(--mine);
+/* heatmap (W08) : fond coloré selon la probabilité, pourcentage affiché */
+.case .p {
+  font-size: 0.55rem;
+  font-weight: bold;
+  color: var(--fond);
 }
-.case { position: relative; }
 
-/* composante CSP (W09) */
-.case.csp { outline: 2px solid var(--accent); }
-.case.mine-déduite { outline: 2px solid var(--mine); }
+/* vue frontière & déductions (W09) */
+.case.frontière { outline: 2px dashed var(--accent); }
+.case.sure { background: var(--sûr); }
+.case.mine-déduite { outline: 2px solid var(--mine); background: #5a2c35; }
 
 .grille.interactive .case { cursor: pointer; }
 
@@ -190,6 +187,28 @@ input {
 }
 
 .cache { display: none !important; }
+
+/* légende des couleurs de la vue analyse */
+.légende {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  font-size: 0.75rem;
+  color: #9aa0b0;
+  flex-basis: 100%;
+}
+
+.pastille {
+  display: inline-block;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 3px;
+  margin-left: 0.4rem;
+}
+
+.pastille.sure { background: var(--sûr); }
+.pastille.mine { background: #5a2c35; outline: 2px solid var(--mine); }
+.pastille.frontière { outline: 2px dashed var(--accent); }
 
 .ligne { display: flex; gap: 3rem; flex-wrap: wrap; }
 

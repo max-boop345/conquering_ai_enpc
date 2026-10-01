@@ -171,15 +171,31 @@ class TestFonctionsPures(unittest.TestCase):
         )
         self.assertIn("true", _node_exec(script, {}))
 
-    def test_heat_opacity_borne(self):
+    def test_heatmap_echelle_de_couleur(self):
+        # vert quand la probabilité est nulle, rouge au-delà de 0.5
         script = (
             "const app = require(" + json.dumps(APP_JS) + ");"
-            "console.log(app.heatOpacity(0) + ' ' + app.heatOpacity(1) + ' ' + app.heatOpacity(2));"
+            "console.log(app.heatColor(0) + '|' + app.heatColor(0.12) + '|' + "
+            "app.heatColor(0.5) + '|' + app.heatColor(1));"
         )
-        sortie = _node_exec(script, {}).split()
-        self.assertAlmostEqual(float(sortie[0]), 0.05, places=6)
-        self.assertAlmostEqual(float(sortie[1]), 0.8, places=6)
-        self.assertAlmostEqual(float(sortie[2]), 0.8, places=6)
+        verte, milieu, rouge, rouge2 = _node_exec(script, {}).strip().split("|")
+        self.assertTrue(verte.startswith("hsl(120"), verte)
+        self.assertTrue(milieu.startswith("hsl("), milieu)
+        self.assertNotEqual(verte, milieu)
+        self.assertTrue(rouge.startswith("hsl(0"), rouge)
+        self.assertEqual(rouge, rouge2)  # saturé au-delà de 0.5
+
+    def test_heatmap_texte(self):
+        script = (
+            "const app = require(" + json.dumps(APP_JS) + ");"
+            "console.log(app.heatText(0) + '|' + app.heatText(0.004) + '|' + "
+            "app.heatText(0.123) + '|' + app.heatText(0.5));"
+        )
+        vide, vide2, douze, cinquante = _node_exec(script, {}).strip().split("|")
+        self.assertEqual(vide, "")
+        self.assertEqual(vide2, "")
+        self.assertEqual(douze, "12%")
+        self.assertEqual(cinquante, "50%")
 
 
 class TestAssetsLocaux(unittest.TestCase):

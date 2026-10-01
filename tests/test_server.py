@@ -168,8 +168,58 @@ class TestServeurLocal(unittest.TestCase):
         self.assertEqual(code, 200)
         self.assertIn("probabilities", analyse)
         self.assertIn("components", analyse)
+        # contraintes R01 : la frontière complète, même résolue par les règles
+        self.assertIn("constraints", analyse)
+        self.assertTrue(all("cells" in c and "count" in c
+                             for c in analyse["constraints"]))
         code, _ = http_get(f"{self.base}/api/games/{gid}/analysis/9999")
         self.assertEqual(code, 404)
+
+    def test_live_partie_sauvegardee_a_la_fin(self):
+        # une partie live terminée devient un artefact lisible dans replay
+        import os
+
+        with tempfile.TemporaryDirectory() as d:
+            from demineur.server import LiveState
+
+            live = LiveState(seed=1, width=5, height=5, mines=3, games_dir=d)
+            for _ in range(60):
+                if live.step() is None or live.game.state.value != "playing":
+                    break
+            fichiers = [f for f in os.listdir(d) if f.endswith(".jsonl")]
+            self.assertEqual(len(fichiers), 1, "la partie live doit être sauvegardée")
+            from demineur.artifacts import load_game
+            header, events, result = load_game(os.path.join(d, fichiers[0]))
+            self.assertEqual(header["solver"], "classic")
+            self.assertEqual(header["origin"], "live")
+            self.assertTrue(all(e["justification"] for e in events))
+
+    def test_duel_parties_sauvegardees_a_la_fin(self):
+        # duel terminé : les deux parties (humain et solveur) sont archivées
+        import os
+
+        with tempfile.TemporaryDirectory() as d:
+            from demineur.server import DuelState
+
+            état = DuelState(seed=5, width=5, height=5, mines=3, games_dir=d)
+            data = état.human_play({"kind": "reveal", "x": 0, "y": 0})
+            mine = next(iter(état.human.board.mines))
+            data = état.human_play({"kind": "reveal", "x": mine[0], "y": mine[1]})
+            self.assertEqual(data["human_state"], "lost")
+            fichiers = sorted(f for f in os.listdir(d) if f.endswith(".jsonl"))
+            self.assertEqual(len(fichiers), 2, "humain + solveur archivés")
+            from demineur.artifacts import load_game
+            by_origin = {}
+            for f in fichiers:
+                header, events, result = load_game(os.path.join(d, f))
+                by_origin[header["origin"]] = (header, events, result)
+            self.assertIn("duel-humain", by_origin)
+            self.assertIn("duel-solveur", by_origin)
+            # la partie humaine n'a pas de justification, celle du solveur oui
+            self.assertTrue(all(e["justification"] is None
+                                for e in by_origin["duel-humain"][1]))
+            self.assertTrue(all(e["justification"]
+                                for e in by_origin["duel-solveur"][1]))
 
     # ---------------------------------------------------------- W13, W20
     def test_live_partie_en_direct(self):

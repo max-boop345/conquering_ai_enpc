@@ -151,6 +151,8 @@ est servi par un petit serveur local qui lit les artefacts (logs JSONL, mémoire
 
 | session 4 | W14/W10 | Duel : mines exposées en fin de partie (uniquement sur grille terminée, INV1 préservé), bandeau Perdu/Gagné posé sur chaque grille (duel et live), le solveur finit sa partie seul après la défaite humaine, GET /api/duel, journalisation des coups de duel côté serveur. Benchmarks : section d'explication des stratégies (random/rule/classic). 185 tests verts. |
 
+| session 4 | W08/W09/W06 | Heatmap lisible : échelle vert→rouge avec pourcentage affiché (suppression de la couche CSS rouge opaque qui écrasait tout), vue W09 devient « frontière et déductions » (contraintes R01 complètes + coups sûrs/mines, toujours informatives), légende des couleurs, les parties live et duel terminées sont archivées automatiquement dans games/ (save_events) et apparaissent dans Replay, rafraîchissement de la liste à l'ouverture de l'onglet. 188 tests verts. |
+
 Règle de mise à jour : chaque tâche terminée ajoute une ligne ici et passe à `[x]` dans sa phase.
 
 Règle de mise à jour : chaque tâche terminée ajoute une ligne ici et passe à `[x]` dans sa phase.
