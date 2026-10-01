@@ -153,6 +153,8 @@ est servi par un petit serveur local qui lit les artefacts (logs JSONL, mémoire
 
 | session 4 | W08/W09/W06 | Heatmap lisible : échelle vert→rouge avec pourcentage affiché (suppression de la couche CSS rouge opaque qui écrasait tout), vue W09 devient « frontière et déductions » (contraintes R01 complètes + coups sûrs/mines, toujours informatives), légende des couleurs, les parties live et duel terminées sont archivées automatiquement dans games/ (save_events) et apparaissent dans Replay, rafraîchissement de la liste à l'ouverture de l'onglet. 188 tests verts. |
 
+| session 4 | W01/W13/W16 | En-tête Cache-Control: no-store sur les assets statiques (un navigateur qui gardeait l'ancien app.js en cache ne voyait pas les nouveaux rendus), unification des routes live sur LiveState.payload(), mines exposées aussi en mode live quand le solveur perd. 190 tests verts. |
+
 Règle de mise à jour : chaque tâche terminée ajoute une ligne ici et passe à `[x]` dans sa phase.
 
 Règle de mise à jour : chaque tâche terminée ajoute une ligne ici et passe à `[x]` dans sa phase.

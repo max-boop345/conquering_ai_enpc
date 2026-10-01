@@ -345,7 +345,7 @@ function initApp() {
 
   function liveMAJ(data) {
     document.getElementById("grille-live").innerHTML =
-      overlayBadge(data.state) + gridHtml(data.view);
+      overlayBadge(data.state) + gridHtml(data.view, data.mines);
     document.getElementById("live-etat").textContent =
       data.state + " · " + data.moves + " coups";
     document.getElementById("live-justification").textContent =

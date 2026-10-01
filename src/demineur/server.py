@@ -71,6 +71,18 @@ class LiveState:
             self._archive()
         return event
 
+    def payload(self) -> dict:
+        """État complet de la partie live ; mines exposées si perdue."""
+        data = {
+            "state": self.game.state.value,
+            "view": self.game.view().to_json(),
+            "moves": len(self.runner.events),
+            "event": self.last_event.to_json() if self.last_event else None,
+        }
+        if self.game.state is GameState.LOST and self.game.board is not None:
+            data["mines"] = [list(m) for m in sorted(self.game.board.mines)]
+        return data
+
 
 class DuelState:
     """Humain vs solveur sur la même grille seedée (W14).
@@ -216,6 +228,8 @@ def make_handler(games_dir: str, web_dir: str):
             self.send_response(200)
             self.send_header("Content-Type", _TYPES.get(ext, "application/octet-stream"))
             self.send_header("Content-Length", str(len(corps)))
+            # les assets évoluent avec le projet: pas de cache navigateur
+            self.send_header("Cache-Control", "no-store")
             self.end_headers()
             self.wfile.write(corps)
 
@@ -293,29 +307,20 @@ def make_handler(games_dir: str, web_dir: str):
                     width=int(p.get("w", 9)), height=int(p.get("h", 9)),
                     mines=int(p.get("mines", 10)), games_dir=games_dir)
                 live = état["live"]
-                return self._json({"state": live.game.state.value,
-                                   "view": live.game.view().to_json()})
+                return self._json(live.payload())
 
             if chemin == "/api/live/state":
                 live = état["live"]
                 if live is None:
                     return self._json({"error": "aucune partie live"}, 404)
-                return self._json({"state": live.game.state.value,
-                                   "view": live.game.view().to_json(),
-                                   "moves": len(live.runner.events)})
+                return self._json(live.payload())
 
             if chemin == "/api/live/step":
                 live = état["live"]
                 if live is None:
                     return self._json({"error": "aucune partie live"}, 404)
                 event = live.step()
-                view = live.game.view().to_json()
-                return self._json({
-                    "state": live.game.state.value,
-                    "view": view,
-                    "moves": len(live.runner.events),
-                    "event": event.to_json() if event else None,
-                })
+                return self._json(live.payload())
 
             if chemin == "/api/duel/new":
                 état["duel"] = DuelState(

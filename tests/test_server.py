@@ -242,6 +242,29 @@ class TestServeurLocal(unittest.TestCase):
         self.assertEqual(code, 200)
         self.assertEqual(data["view"]["state"], "playing")
 
+    def test_live_perdu_mines_exposees(self):
+        # le solveur perd en live: ses mines sont affichées (partie finie)
+        from demineur.server import LiveState
+
+        live = LiveState(seed=1, width=5, height=5, mines=3)
+        live.step()  # premier coup: les mines sont placées
+        mine = next(iter(live.game.board.mines))
+        live.game.reveal(*mine)  # défaite simulée
+        live.step()  # la partie terminée est archivée
+        data = live.payload()
+        self.assertEqual(data["state"], "lost")
+        self.assertIn("mines", data)
+        self.assertIn([mine[0], mine[1]], data["mines"])
+
+    def test_assets_sans_cache_navigateur(self):
+        # les assets évoluent avec le projet: le navigateur ne doit pas les cacher
+        import urllib.request as _rq
+
+        with _rq.urlopen(f"{self.base}/app.js", timeout=5) as r:
+            self.assertEqual(r.headers.get("Cache-Control"), "no-store")
+        with _rq.urlopen(f"{self.base}/", timeout=5) as r:
+            self.assertEqual(r.headers.get("Cache-Control"), "no-store")
+
     # ---------------------------------------------------------- W14
     def test_duel_web(self):
         base = f"{self.base}/api/duel"
