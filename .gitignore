@@ -8,3 +8,7 @@ __pycache__/
 dist/
 build/
 
+
+# build Netlify
+node_modules/
+dist/

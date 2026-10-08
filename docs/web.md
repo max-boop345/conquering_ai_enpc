@@ -39,7 +39,8 @@ l'analyse est recalculée à la demande, à partir de la seule vue joueur.
 
 ## Limites
 
-- Local uniquement : aucun déploiement distant, aucun accès hors localhost.
+- Le serveur Python reste local (127.0.0.1) ; la version en ligne n'en a pas
+  besoin (voir « Version en ligne (Netlify) »).
 - Le mode live/duel vit en mémoire du serveur : perdu à l'arrêt (voulu).
 - Un seul utilisateur (pas d'authentification) — acceptable sur 127.0.0.1.
 
@@ -49,3 +50,19 @@ l'analyse est recalculée à la demande, à partir de la seule vue joueur.
 demineur serve --open            # ouvre le navigateur local
 # équivalent : PYTHONPATH=src python3 -m demineur.cli serve
 ```
+
+## Version en ligne (Netlify)
+
+Netlify n'exécute pas de serveur Python : `deploy/build_site.py` (commande de
+build de `netlify.toml`) produit un site statique dans `dist/` :
+
+- les routes en lecture seule (`/api/solvers`, `/api/games`, parties,
+  analyses de chaque coup, `/api/benchmarks`) sont figées en JSON en
+  interrogeant le serveur local pendant le build ;
+- les modes live et duel tournent dans le navigateur grâce à Pyodide
+  (servi depuis le site, aucune ressource distante) : `deploy/backend.js`
+  intercepte `fetch("/api/...")` et `deploy/bridge.py` réutilise `LiveState`
+  et `DuelState` de `server.py` — même moteur, mêmes seeds qu'en local ;
+- en ligne, les parties live/duel ne sont pas archivées dans `games/`.
+
+Pour ajouter une partie au Replay en ligne, commitez son fichier `games/*.jsonl`.
