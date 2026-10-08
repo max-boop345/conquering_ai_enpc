@@ -1,0 +1,18 @@
+# Version en ligne du site : frontend statique de web/, réponses API figées au
+# build et moteur Python exécuté dans le navigateur (Pyodide) pour live/duel.
+[build]
+  command = "npm ci --no-audit --no-fund && python3 deploy/build_site.py"
+  publish = "dist"
+
+[build.environment]
+  PYTHON_VERSION = "3.13"
+
+[[headers]]
+  for = "/pyodide/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.wasm"
+  [headers.values]
+    Content-Type = "application/wasm"

@@ -1,0 +1,8 @@
+{
+  "name": "demineur-site",
+  "private": true,
+  "description": "Dépendances de build de la version Netlify du site (Pyodide)",
+  "dependencies": {
+    "pyodide": "314.0.7"
+  }
+}
