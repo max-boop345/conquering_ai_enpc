@@ -1,0 +1,3 @@
+# Configuration Netlify — le site statique vit dans web/
+[build]
+  publish = "web"
