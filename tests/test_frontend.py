@@ -6,16 +6,13 @@ le test est sinon sauté (aucune dépendance obligatoire ajoutée).
 
 import json
 import os
-import shutil
-import subprocess
-import tempfile
 import unittest
 
 from demineur.game import Game
+from tests.js_harness import NODE, RACINE, node_exec, web_js
 
-NODE = shutil.which("node") if shutil.which else None
-RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 APP_JS = os.path.join(RACINE, "web", "app.js")
+_node_exec = node_exec  # compat avec le corps existant des tests
 
 
 def _vue_fixture() -> dict:
@@ -23,20 +20,6 @@ def _vue_fixture() -> dict:
     jeu.reveal(0, 0)
     jeu.flag(4, 4)
     return jeu.view().to_json()
-
-
-def _node_exec(script: str, fichiers: dict) -> str:
-    with tempfile.TemporaryDirectory() as d:
-        for nom, contenu in fichiers.items():
-            chemin = f"{d}/{nom}"
-            with open(chemin, "w", encoding="utf-8") as f:
-                f.write(contenu)
-        cmd = ["node", "-e", script.replace("@fixture@", f"{d}/fixture.json")]
-        retour = subprocess.run(cmd, capture_output=True, text=True, timeout=30,
-                                cwd=d)
-        if retour.returncode != 0:
-            raise RuntimeError(f"node a échoué: {retour.stderr}")
-        return retour.stdout
 
 
 @unittest.skipUnless(NODE, "node non disponible")
@@ -47,11 +30,10 @@ class TestRenduGrille(unittest.TestCase):
         vue = _vue_fixture()
         script = (
             "const app = require(" + json.dumps(APP_JS) + ");"
-            "const fs = require('fs');"
-            "const vue = JSON.parse(fs.readFileSync('@fixture@', 'utf8'));"
+            "const vue = @fixture:fixture.json;"
             "console.log(app.gridHtml(vue));"
         )
-        html = _node_exec(script, {"fixture.json": json.dumps(vue)})
+        html = _node_exec(script, {"fixture.json": vue})
         # nombre correct de cases
         self.assertEqual(html.count('class="case'), vue["width"] * vue["height"])
         # le drapeau est rendu
@@ -66,15 +48,14 @@ class TestRenduGrille(unittest.TestCase):
         vue = _vue_fixture()
         script = (
             "const app = require(" + json.dumps(APP_JS) + ");"
-            "const fs = require('fs');"
-            "const vue = JSON.parse(fs.readFileSync('@fixture@', 'utf8'));"
+            "const vue = @fixture:fixture.json;"
             "const html = app.gridHtml(vue);"
             "console.log(JSON.stringify({"
             "cache: html.includes('cachée'), "
             "revelee: html.includes('révélée'), "
             "drapeau: html.includes('drapeau')}));"
         )
-        données = json.loads(_node_exec(script, {"fixture.json": json.dumps(vue)}))
+        données = json.loads(_node_exec(script, {"fixture.json": vue}))
         self.assertTrue(données["cache"])
         self.assertTrue(données["revelee"])
         self.assertTrue(données["drapeau"])
@@ -84,12 +65,11 @@ class TestRenduGrille(unittest.TestCase):
         mines = [[2, 2], [3, 4]]
         script = (
             "const app = require(" + json.dumps(APP_JS) + ");"
-            "const fs = require('fs');"
-            "const vue = JSON.parse(fs.readFileSync('@fixture@', 'utf8'));"
+            "const vue = @fixture:fixture.json;"
             "const html = app.gridHtml(vue, " + json.dumps(mines) + ");"
             "console.log(html);"
         )
-        html = _node_exec(script, {"fixture.json": json.dumps(vue)})
+        html = _node_exec(script, {"fixture.json": vue})
         self.assertEqual(html.count("minée"), 2)
         self.assertIn(">B<", html)
         # les cases non minées restent rendues normalement
