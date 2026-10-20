@@ -212,12 +212,10 @@ class TestDéciderJS(unittest.TestCase):
         self.assertIn("reveal true", sortie)
 
     def test_coup_sûr_avant_guess(self):
-        # Fixture ajustée (leçon lot A) : en 4x2, (2,1) a plus de voisins
-        # cachés que (2,0) et le tie-break cascade choisit (2,1) ;
-        # en 3x1 le seul voisin caché de (1,0) est (2,0).
-        # Assertion identique au plan.
-        fixture = vue_fixture({(1, 0): 1}, flags={(0, 0)},
-                               width=3, height=1, mines=2)
+        # Tie-break conforme à Python (classic_solver.py:230) : à égalité de
+        # voisins cachés — (2,0) et (2,1) ont chacune exactement 4 voisins
+        # cachés ici — max sur (-y, -x) garde le plus petit y puis x -> (2,0).
+        fixture = vue_fixture({(1, 0): 1}, flags={(0, 0)})
         sortie = node_exec(
             "const S = " + SOLVER + ";\n"
             "const d = new S.SolveurClassique().décider(@fixture:vue);\n"
@@ -288,6 +286,63 @@ class TestDéciderJS(unittest.TestCase):
             {"vue": fixture},
         )
         self.assertIn("true", sortie)
+
+
+@unittest.skipUnless(NODE, "node non disponible")
+class TestConformitéJS(unittest.TestCase):
+    """Correctifs de conformité vs classic_solver.py (revue lot B)."""
+
+    def test_r12_contrainte_négative_après_réduction(self):
+        # (3,0)=2 + drapeau (4,0) -> contrainte {2,0}:1 -> mine (2,0) ;
+        # la contrainte du 0 en (1,0) devient count -1 après réduction :
+        # analyser doit lever "contrainte impossible" (comme _réduis Python).
+        fixture = vue_fixture({(1, 0): 0, (3, 0): 2}, flags={(4, 0)},
+                              width=5, height=1, mines=1)
+        sortie = node_exec(
+            "const S = " + SOLVER + ";\n"
+            "try { S.analyser(@fixture:vue); console.log('pas-derreur'); }\n"
+            "catch (e) { console.log(e.message); }",
+            {"vue": fixture},
+        )
+        self.assertIn("contrainte impossible", sortie)
+
+    def test_découper_union_pas_somme(self):
+        # Deux contraintes de 6 cases partageant 3 cases : union 9, somme 12.
+        # Avec tailleMax=10, l'union garde un seul cluster (comme _clusters).
+        sortie = node_exec(
+            "const S = " + SOLVER + ";\n"
+            "const c1 = {cells: new Set(['0,0','1,0','2,0','3,0','4,0','5,0']),"
+            " count: 3};\n"
+            "const c2 = {cells: new Set(['3,0','4,0','5,0','6,0','7,0','8,0']),"
+            " count: 3};\n"
+            "console.log(S.découper([c1, c2], 10).length);"
+        )
+        self.assertIn("1", sortie)
+
+    def test_tri_numérique_sorties(self):
+        # "10,0" doit venir après "2,0" (tri numérique, pas lexicographique).
+        fixture = vue_fixture({(3, 0): 1, (5, 0): 1, (7, 0): 1, (9, 0): 1},
+                              width=11, height=1, mines=1)
+        sortie = node_exec(
+            "const S = " + SOLVER + ";\n"
+            "const a = S.analyser(@fixture:vue);\n"
+            "console.log(JSON.stringify(a.components[0].cells),"
+            "            JSON.stringify(a.constraints[0].cells));",
+            {"vue": fixture},
+        )
+        self.assertIn("[[2,0],[4,0],[6,0],[8,0],[10,0]]", sortie)
+        self.assertIn("[[2,0],[4,0]]", sortie)
+
+    def test_exact_false_sans_case_cachée(self):
+        # Python (classic_solver.py:141-142) : probabilités vides -> exact=False.
+        fixture = vue_fixture({(0, 0): 0}, width=1, height=1, mines=0)
+        sortie = node_exec(
+            "const S = " + SOLVER + ";\n"
+            "const a = S.analyser(@fixture:vue);\n"
+            "console.log(a.exact, Object.keys(a.probabilities).length);",
+            {"vue": fixture},
+        )
+        self.assertIn("false 0", sortie)
 
 
 if __name__ == "__main__":

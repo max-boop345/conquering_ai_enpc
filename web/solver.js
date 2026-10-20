@@ -14,6 +14,12 @@ function parseClé(clé) {
   return [parseInt(p[0], 10), parseInt(p[1], 10)];
 }
 
+function triClés(a, b) {
+  var p = parseClé(a), q = parseClé(b);
+  return (p[1] - q[1]) || (p[0] - q[0]);
+}
+function compareXY(a, b) { return (a[1] - b[1]) || (a[0] - b[0]); }
+
 function voisinsVue(vue, x, y) {
   var out = [];
   for (var dy = -1; dy <= 1; dy++) {
@@ -53,7 +59,7 @@ function extraireContraintes(vue) {
 
 /* ---- helpers ensembles ---- */
 function cléContrainte(cells, count) {
-  return Array.from(cells).sort().join("|") + ":" + count;
+  return Array.from(cells).sort(triClés).join("|") + ":" + count;
 }
 function sousEnsemble(a, b) {  /* a sous-ensemble strict de b */
   if (a.size >= b.size) return false;
@@ -87,7 +93,7 @@ function déduire(contraintes) {
     }
   });
   var bornes = Object.keys(travail).length * (Object.keys(travail).length + 1) + 1;
-  for (var tour = 0; tour <= bornes; tour++) {
+  for (var tour = 0; tour < bornes; tour++) {
     var nouvelles = false;
     /* R04 : réduction par les mines connues */
     Object.keys(parClé).forEach(function (k) {
@@ -383,7 +389,7 @@ function analyser(vue) {
     probabilities: {},
     components: [],
     constraints: contraintes.map(function (c) {
-      return { cells: Array.from(c.cells).map(parseClé), count: c.count };
+      return { cells: Array.from(c.cells).map(parseClé).sort(compareXY), count: c.count };
     }),
     exact: true,
   };
@@ -392,6 +398,9 @@ function analyser(vue) {
   contraintes.forEach(function (c) {
     var cells = différence(c.cells, minesConnues);
     var count = c.count - tailleIntersection(c.cells, minesConnues);
+    if (cells.size > 0 && count < 0) {
+      throw new Error("contrainte impossible: " + count + "/" + cells.size);
+    }
     if (cells.size > 0 && count > 0) réduites.push({ cells: cells, count: count });
   });
   var compsData = [];
@@ -403,11 +412,11 @@ function analyser(vue) {
         if (!vu.has(p)) { vu.add(p); cellules.push(p); }
       });
     });
-    cellules.sort();
+    cellules.sort(triClés);
     résultat.components.push({
       cells: cellules.map(parseClé),
       constraints: groupe.map(function (c) {
-        return { cells: Array.from(c.cells).map(parseClé), count: c.count };
+        return { cells: Array.from(c.cells).map(parseClé).sort(compareXY), count: c.count };
       }),
     });
     try {
@@ -440,7 +449,7 @@ function analyser(vue) {
               if (!vu2.has(p)) { vu2.add(p); sc.push(p); }
             });
           });
-          sc.sort();
+          sc.sort(triClés);
           try {
             var ss = énumérer(sc, sous);
             var cl = classer(sc, ss);
@@ -472,6 +481,7 @@ function analyser(vue) {
   }
   if (!résultat.exact || Object.keys(résultat.probabilities).length === 0) {
     résultat.probabilities = uniformiser(vue);
+    résultat.exact = false;
   }
   return résultat;
 }
@@ -482,7 +492,9 @@ function découper(groupe, tailleMax) {
   var courant = [];
   var cellules = new Set();
   groupe.forEach(function (c) {
-    if (courant.length > 0 && cellules.size + c.cells.size > tailleMax) {
+    var union = new Set(cellules);
+    c.cells.forEach(function (p) { union.add(p); });
+    if (courant.length > 0 && union.size > tailleMax) {
       clusters.push(courant);
       courant = [];
       cellules = new Set();
@@ -556,8 +568,8 @@ SolveurClassique.prototype.décider = function (vue) {
       var score = nbVoisinsÉtat(vue, xy[0], xy[1], "hidden");
       var mscore = nbVoisinsÉtat(vue, mxy[0], mxy[1], "hidden");
       if (score !== mscore) return score > mscore ? p : meilleur;
-      if (xy[1] !== mxy[1]) return xy[1] > mxy[1] ? p : meilleur;
-      return xy[0] > mxy[0] ? p : meilleur;
+      if (xy[1] !== mxy[1]) return xy[1] < mxy[1] ? p : meilleur;
+      return xy[0] < mxy[0] ? p : meilleur;
     }, null);
     var px = parseClé(pos);
     return { action: { kind: "reveal", x: px[0], y: px[1] },
@@ -605,6 +617,6 @@ if (typeof module !== "undefined" && module.exports) {
     MAX_CELLULES_CSP: MAX_CELLULES_CSP, MAX_SOLUTIONS_CSP: MAX_SOLUTIONS_CSP,
     analyser: analyser, probabilitésExactes: probabilitésExactes,
     uniformiser: uniformiser, comb: comb, casesCachées: casesCachées,
-    SolveurClassique: SolveurClassique,
+    SolveurClassique: SolveurClassique, découper: découper,
   };
 }
