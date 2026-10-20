@@ -67,6 +67,31 @@ class TestMoteurJS(unittest.TestCase):
         ))
         self.assertIn("true", sortie)
 
+    def test_constructeur_aligne_python(self):
+        # comme game.py : 0 <= mines_count <= width*height à la construction ;
+        # "placement impossible" n'arrive qu'au premier coup
+        sortie = node_exec(self.script(
+            "let ok = true;\n"
+            "try { new E.Jeu(5, 5, 0, 0); } catch (e) { ok = false; }\n"
+            "try { new E.Jeu(3, 3, 9, 0); } catch (e) { ok = false; }\n"
+            "let négatif = false;\n"
+            "try { new E.Jeu(5, 5, -1, 0); } catch (e) { négatif = true; }\n"
+            "let trop = false;\n"
+            "try { new E.Jeu(3, 3, 10, 0); } catch (e) { trop = true; }\n"
+            "console.log(ok, négatif, trop);"
+        ))
+        self.assertIn("true true true", sortie)
+
+    def test_partie_sans_mine_gagnable(self):
+        # 3x3 : il reste des cases libres hors zone sûre (en 2x2, la zone
+        # couvre tout et Python lève aussi "placement impossible")
+        sortie = node_exec(self.script(
+            "const jeu = new E.Jeu(3, 3, 0, 0);\n"
+            "jeu.révéler(0, 0);\n"
+            "console.log(jeu.state);"
+        ))
+        self.assertIn("won", sortie)
+
 
 @unittest.skipUnless(NODE, "node non disponible")
 class TestMoteurReveal(unittest.TestCase):
@@ -186,6 +211,41 @@ class TestRunnerJS(unittest.TestCase):
             "console.log(e.result, e.detail, runner.abandon);"
         ))
         self.assertIn("gave_up test true", sortie)
+
+    def test_evenements_sans_aliasing(self):
+        # illegal : view_after est une vue fraîche et l'action est copiée ;
+        # muter l'objet de l'appelant ou view_after ne corrompt rien
+        sortie = node_exec(self._s(
+            "const runner = new E.RunnerJS(new E.Jeu(5, 5, 3, 4));\n"
+            "const action = {kind: 'reveal', x: 9, y: 9};\n"
+            "const e = runner.appliquer(action, '');\n"
+            "const avant = e.view_before;\n"
+            "e.view_after.grid[0][0].state = 'muté';\n"
+            "action.kind = 'muté';\n"
+            "console.log(e.result, avant.grid[0][0].state, e.action.kind,\n"
+            "            JSON.stringify(e.justification),\n"
+            "            e.view_before === e.view_after);"
+        ))
+        self.assertIn('illegal hidden reveal "" false', sortie)
+
+    def test_giveup_vue_fraiche(self):
+        sortie = node_exec(self._s(
+            "const runner = new E.RunnerJS(new E.Jeu(5, 5, 3, 4));\n"
+            "const e = runner.appliquer({kind: 'giveup', reason: 'x'}, null);\n"
+            "console.log(e.view_before === e.view_after);"
+        ))
+        self.assertIn("false", sortie)
+
+    def test_runner_valide_limites(self):
+        # comme runner.py : maxMoves/maxRejets strictement positifs
+        sortie = node_exec(self._s(
+            "const jeu = new E.Jeu(5, 5, 3, 4);\n"
+            "let e1 = false, e2 = false;\n"
+            "try { new E.RunnerJS(jeu, 0); } catch (e) { e1 = true; }\n"
+            "try { new E.RunnerJS(jeu, 10, 0); } catch (e) { e2 = true; }\n"
+            "console.log(e1, e2);"
+        ))
+        self.assertIn("true true", sortie)
 
 
 if __name__ == "__main__":

@@ -38,7 +38,9 @@ function Jeu(width, height, minesCount, seed) {
   if (width <= 0 || height <= 0) {
     throw new Error("dimensions strictement positives requises");
   }
-  if (!(minesCount > 0) || minesCount >= width * height) {
+  /* Comme game.py : 0 <= mines_count <= width*height à la construction ;
+   * le contrôle "placement impossible" n'a lieu qu'au premier coup. */
+  if (!(minesCount >= 0) || minesCount > width * height) {
     throw new Error("nombre de mines invalide");
   }
   this.width = width;
@@ -206,6 +208,12 @@ function RunnerJS(jeu, maxMoves, maxRejets) {
   this.jeu = jeu;
   this.maxMoves = maxMoves === undefined ? 10000 : maxMoves;
   this.maxRejets = maxRejets === undefined ? 5 : maxRejets;
+  if (!(this.maxMoves > 0)) {
+    throw new Error("max_moves doit être positif");
+  }
+  if (!(this.maxRejets > 0)) {
+    throw new Error("max_rejections doit être positif");
+  }
   this.events = [];
   this.abandon = false;
   this._rejets = 0;
@@ -216,8 +224,8 @@ RunnerJS.prototype.appliquer = function (action, justification) {
   var event = {
     move: this.events.length,
     view_before: vueAvant,
-    action: action,
-    justification: justification || null,
+    action: { kind: action.kind, x: action.x, y: action.y, reason: action.reason },
+    justification: typeof justification === "string" ? justification : null,
     view_after: vueAvant,
     result: "ok",
     detail: null,
@@ -225,6 +233,7 @@ RunnerJS.prototype.appliquer = function (action, justification) {
   if (action.kind === "giveup") {
     event.result = "gave_up";
     event.detail = action.reason || "";
+    event.view_after = this.jeu.vue();
     this.abandon = true;
     this.events.push(event);
     return event;
@@ -242,6 +251,7 @@ RunnerJS.prototype.appliquer = function (action, justification) {
     this._rejets++;
     event.result = "illegal";
     event.detail = String(err.message || err);
+    event.view_after = this.jeu.vue();
     this.events.push(event);
     if (this._rejets >= this.maxRejets) {
       this.abandon = true;
