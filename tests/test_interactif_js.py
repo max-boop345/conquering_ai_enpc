@@ -1,4 +1,4 @@
-"""Tests node des contrôleurs interactifs JS — payloads identiques à l'API."""
+"""Tests node des contrôleurs interactifs JS — payloads au format de l'API Python."""
 
 import json
 import unittest

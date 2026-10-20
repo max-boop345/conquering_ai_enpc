@@ -63,6 +63,9 @@ def save_game(directory: str, runner, meta: dict) -> str:
             "won": runner.game.state.value == "won",
             "moves": len(runner.events),
         }
+        # fin de partie : toutes les mines archivées (replay), cliquées ou non
+        if runner.game.board is not None:
+            résultat["mines"] = [list(m) for m in sorted(runner.game.board.mines)]
         f.write(json.dumps(résultat, ensure_ascii=False) + "\n")
     return chemin
 

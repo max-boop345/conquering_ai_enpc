@@ -54,6 +54,23 @@ class TestArtefacts(unittest.TestCase):
             with self.assertRaises(ValueError):
                 load_game(chemin)
 
+    def test_mines_dans_le_resultat(self):
+        # fin de partie : toutes les mines sont archivées, cliquées ou non
+        import tempfile as _tf
+
+        from demineur.game import Game
+        from demineur.runner import GameRunner
+        from demineur.solvers.classic import ClassicSolver
+
+        with _tf.TemporaryDirectory() as d:
+            runner = GameRunner(Game(5, 5, 3, seed=4))
+            runner.run(ClassicSolver())
+            chemin = save_game(d, runner, meta={"seed": 4, "solver": "classic"})
+            _, _, result = load_game(chemin)
+            self.assertIn("mines", result)
+            self.assertEqual(len(result["mines"]), 3)
+            self.assertTrue(all(len(m) == 2 for m in result["mines"]))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -72,14 +72,14 @@ class LiveState:
         return event
 
     def payload(self) -> dict:
-        """État complet de la partie live ; mines exposées si perdue."""
+        """État complet de la partie live ; mines exposées si terminée."""
         data = {
             "state": self.game.state.value,
             "view": self.game.view().to_json(),
             "moves": len(self.runner.events),
             "event": self.last_event.to_json() if self.last_event else None,
         }
-        if self.game.state is GameState.LOST and self.game.board is not None:
+        if self.game.state is not GameState.PLAYING and self.game.board is not None:
             data["mines"] = [list(m) for m in sorted(self.game.board.mines)]
         return data
 
@@ -117,16 +117,16 @@ class DuelState:
 
     def payload(self) -> dict:
         """État complet du duel ; les mines ne sont exposées que pour les
-        grilles terminées (perdues) — jamais pour une partie en cours (INV1)."""
+        grilles terminées (gagnées ou perdues) — jamais en cours (INV1)."""
         data = {
             "human": self.human.view().to_json(),
             "solver": self.solver_game.view().to_json(),
             "human_state": self.human.state.value,
             "solver_state": self.solver_game.state.value,
         }
-        if self.human.state is GameState.LOST and self.human.board is not None:
+        if self.human.state is not GameState.PLAYING and self.human.board is not None:
             data["human_mines"] = [list(m) for m in sorted(self.human.board.mines)]
-        if self.solver_game.state is GameState.LOST and self.solver_game.board is not None:
+        if self.solver_game.state is not GameState.PLAYING and self.solver_game.board is not None:
             data["solver_mines"] = [list(m) for m in sorted(self.solver_game.board.mines)]
         return data
 

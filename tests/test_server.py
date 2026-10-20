@@ -256,6 +256,20 @@ class TestServeurLocal(unittest.TestCase):
         self.assertIn("mines", data)
         self.assertIn([mine[0], mine[1]], data["mines"])
 
+    def test_live_gagne_mines_exposees(self):
+        # partie gagnée: les mines sont aussi exposées (fin de partie)
+        from demineur.server import LiveState
+
+        live = LiveState(seed=3, width=5, height=5, mines=2)
+        for _ in range(60):
+            live.step()
+            if live.game.state.value != "playing":
+                break
+        data = live.payload()
+        self.assertEqual(data["state"], "won")
+        self.assertIn("mines", data)
+        self.assertEqual(len(data["mines"]), 2)
+
     def test_assets_sans_cache_navigateur(self):
         # les assets évoluent avec le projet: le navigateur ne doit pas les cacher
         import urllib.request as _rq
@@ -330,6 +344,24 @@ class TestServeurLocal(unittest.TestCase):
         self.assertIn([mine[0], mine[1]], data["solver_mines"])
         # l'humain encore en jeu n'a PAS ses mines exposées (pas de fuite)
         self.assertNotIn("human_mines", data)
+
+    def test_duel_humain_gagne_mines_exposees(self):
+        from demineur.game import GameState
+        from demineur.server import DuelState
+
+        état = DuelState(seed=5, width=5, height=5, mines=3)
+        data = état.human_play({"kind": "reveal", "x": 0, "y": 0})
+        while état.human.state is GameState.PLAYING:
+            vue = état.human.view()
+            sûres = [p for p in vue.hidden_cells()
+                     if not vue.is_flagged(p) and not état.human.board.is_mine(p)]
+            if not sûres:
+                break
+            data = état.human_play({"kind": "reveal", "x": sûres[0][0],
+                                    "y": sûres[0][1]})
+        self.assertEqual(data["human_state"], "won")
+        self.assertIn("human_mines", data)
+        self.assertEqual(len(data["human_mines"]), 3)
 
     # ---------------------------------------------------------- W15
     def test_api_inconnue_404(self):
