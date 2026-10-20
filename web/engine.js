@@ -135,6 +135,70 @@ Jeu.prototype.vue = function () {
   };
 };
 
+Jeu.prototype.révéler = function (x, y) {
+  if (this.state !== "playing") {
+    throw new Error("partie terminée (" + this.state + ")");
+  }
+  if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
+    throw new Error("position hors grille: (" + x + "," + y + ")");
+  }
+  var pos = x + "," + y;
+  if (this.révélées.has(pos)) {
+    throw new Error("case déjà révélée: (" + x + "," + y + ")");
+  }
+  if (this.drapeaux.has(pos)) {
+    throw new Error("case marquée d'un drapeau: (" + x + "," + y + ")");
+  }
+  if (this.mines === null) this._placerMines(x, y);
+  if (this.mines.has(pos)) {
+    this.révélées.add(pos);
+    this.state = "lost";
+    return [[x, y]];
+  }
+  var file = [[x, y]];
+  var sorties = [];
+  while (file.length > 0) {
+    var p = file.pop();
+    var clé = p[0] + "," + p[1];
+    if (this.révélées.has(clé) || this.drapeaux.has(clé)) continue;
+    this.révélées.add(clé);
+    sorties.push(p);
+    if (this.adjacent[clé] === 0) {
+      voisins(this.width, this.height, p[0], p[1]).forEach(function (v) {
+        file.push(v);
+      });
+    }
+  }
+  if (this.révélées.size === this.width * this.height - this.minesCount) {
+    this.state = "won";
+  }
+  return sorties;
+};
+
+Jeu.prototype.drapeau = function (x, y) {
+  if (this.state !== "playing") throw new Error("partie terminée (" + this.state + ")");
+  if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
+    throw new Error("position hors grille: (" + x + "," + y + ")");
+  }
+  var pos = x + "," + y;
+  if (this.révélées.has(pos)) {
+    throw new Error("case déjà révélée: (" + x + "," + y + ")");
+  }
+  if (this.drapeaux.has(pos)) {
+    throw new Error("drapeau déjà posé: (" + x + "," + y + ")");
+  }
+  this.drapeaux.add(pos);
+};
+
+Jeu.prototype.retirerDrapeau = function (x, y) {
+  if (this.state !== "playing") throw new Error("partie terminée (" + this.state + ")");
+  var pos = x + "," + y;
+  if (!this.drapeaux.has(pos)) {
+    throw new Error("pas de drapeau en (" + x + "," + y + ")");
+  }
+  this.drapeaux.delete(pos);
+};
+
 if (typeof module !== "undefined" && module.exports) {
   module.exports = { Jeu: Jeu, mulberry32: mulberry32, voisins: voisins };
 }

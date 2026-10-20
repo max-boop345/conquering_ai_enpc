@@ -68,5 +68,82 @@ class TestMoteurJS(unittest.TestCase):
         self.assertIn("true", sortie)
 
 
+@unittest.skipUnless(NODE, "node non disponible")
+class TestMoteurReveal(unittest.TestCase):
+    def _s(self, corps):
+        return "const E = " + ENGINE + ";\n" + corps
+
+    def test_cascade(self):
+        sortie = node_exec(self._s(
+            "const jeu = new E.Jeu(9, 9, 10, 42);\n"
+            "const r = jeu.révéler(0, 0);\n"
+            "console.log(r.length >= 9, jeu.state);"
+        ))
+        self.assertIn("true playing", sortie)
+
+    def test_defaite_sur_mine(self):
+        sortie = node_exec(self._s(
+            "const jeu = new E.Jeu(5, 5, 3, 4);\n"
+            "jeu.révéler(0, 0);\n"
+            "const mine = jeu.positionsMines()[0];\n"
+            "jeu.révéler(mine[0], mine[1]);\n"
+            "console.log(jeu.state);"
+        ))
+        self.assertIn("lost", sortie)
+
+    def test_victoire(self):
+        sortie = node_exec(self._s(
+            "const jeu = new E.Jeu(3, 3, 1, 0);\n"
+            "jeu.révéler(0, 0);\n"
+            "for (let y = 0; y < 3; y++) for (let x = 0; x < 3; x++) {\n"
+            "  if (jeu.state !== 'playing') break;\n"
+            "  if (!jeu.estMine(x, y)) { try { jeu.révéler(x, y); } catch (e) {} }\n"
+            "}\n"
+            "console.log(jeu.state);"
+        ))
+        self.assertIn("won", sortie)
+
+    def test_coups_illegaux_refusés(self):
+        # seed 42 : le layout mulberry32 laisse (4,4) cachée après la cascade,
+        # ce que le scénario d'origine (seed 4, layout Python) supposait.
+        sortie = node_exec(self._s(
+            "const jeu = new E.Jeu(5, 5, 3, 42);\n"
+            "jeu.révéler(0, 0);\n"
+            "const erreurs = [];\n"
+            "[[0,0], [9,9]].forEach(p => {\n"
+            "  try { jeu.révéler(p[0], p[1]); } catch (e) { erreurs.push(e.message); }\n"
+            "});\n"
+            "jeu.drapeau(4, 4);\n"
+            "try { jeu.révéler(4, 4); } catch (e) { erreurs.push(e.message); }\n"
+            "console.log(erreurs.length, erreurs[0].indexOf('déjà révélée') >= 0,\n"
+            "            erreurs[2].indexOf('drapeau') >= 0);"
+        ))
+        self.assertIn("3 true true", sortie)
+
+    def test_drapeaux(self):
+        sortie = node_exec(self._s(
+            "const jeu = new E.Jeu(5, 5, 3, 4);\n"
+            "jeu.drapeau(1, 1);\n"
+            "const avant = jeu.estDrapeau(1, 1) + ' ' + jeu.vue().grid[1][1].state;\n"
+            "jeu.retirerDrapeau(1, 1);\n"
+            "console.log(avant, jeu.estDrapeau(1, 1));"
+        ))
+        self.assertIn("true flagged false", sortie)
+
+    def test_aucune_action_apres_fin(self):
+        # 5x5 (le 3x3/1 mine se gagne au premier coup, y compris côté Python
+        # pour un autre layout — on perd ici sur une mine comme test_defaite).
+        sortie = node_exec(self._s(
+            "const jeu = new E.Jeu(5, 5, 3, 4);\n"
+            "jeu.révéler(0, 0);\n"
+            "const mine = jeu.positionsMines()[0];\n"
+            "jeu.révéler(mine[0], mine[1]);\n"
+            "let erreur = false;\n"
+            "try { jeu.révéler(2, 2); } catch (e) { erreur = true; }\n"
+            "console.log(erreur, jeu.state);"
+        ))
+        self.assertIn("true lost", sortie)
+
+
 if __name__ == "__main__":
     unittest.main()
