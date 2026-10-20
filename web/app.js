@@ -394,6 +394,7 @@ function initUI(statique) {
 
   /* ---------- live (W13) ---------- */
   var liveAuto = null;
+  var liveJS = null;
 
   function liveMAJ(data) {
     document.getElementById("grille-live").innerHTML =
@@ -405,6 +406,14 @@ function initUI(statique) {
   }
 
   document.getElementById("btn-live-new").addEventListener("click", function () {
+    if (statique) {
+      liveJS = new LiveJS(parseInt(document.getElementById("live-seed").value, 10) || 0,
+                          parseInt(document.getElementById("live-w").value, 10) || 9,
+                          parseInt(document.getElementById("live-h").value, 10) || 9,
+                          parseInt(document.getElementById("live-mines").value, 10) || 10);
+      liveMAJ(liveJS.payload());
+      return;
+    }
     var q = "?seed=" + document.getElementById("live-seed").value +
       "&w=" + document.getElementById("live-w").value +
       "&h=" + document.getElementById("live-h").value +
@@ -413,6 +422,10 @@ function initUI(statique) {
       .catch(erreur("live-etat", "nouvelle partie impossible"));
   });
   document.getElementById("btn-live-step").addEventListener("click", function () {
+    if (statique) {
+      if (liveJS) { liveJS.étape(); liveMAJ(liveJS.payload()); }
+      return;
+    }
     api("/api/live/step").then(liveMAJ)
       .catch(erreur("live-etat", "aucune partie en cours"));
   });
@@ -421,6 +434,20 @@ function initUI(statique) {
       clearInterval(liveAuto);
       liveAuto = null;
       this.textContent = "lecture auto";
+      return;
+    }
+    if (statique) {
+      liveAuto = setInterval(function () {
+        if (!liveJS) return;
+        liveJS.étape();
+        liveMAJ(liveJS.payload());
+        if (liveJS.payload().state !== "playing") {
+          clearInterval(liveAuto);
+          liveAuto = null;
+          document.getElementById("btn-live-auto").textContent = "lecture auto";
+        }
+      }, 350);
+      this.textContent = "pause";
       return;
     }
     api("/api/live/step").then(function (data) {
@@ -446,6 +473,7 @@ function initUI(statique) {
 
   /* ---------- duel (W14) ---------- */
   var duelActif = null;
+  var duelJS = null;
 
   function duelMAJ(data) {
     document.getElementById("grille-duel-humain").innerHTML =
@@ -464,6 +492,14 @@ function initUI(statique) {
   }
 
   document.getElementById("btn-duel-new").addEventListener("click", function () {
+    if (statique) {
+      duelJS = new DuelJS(parseInt(document.getElementById("duel-seed").value, 10) || 0,
+                          parseInt(document.getElementById("duel-w").value, 10) || 9,
+                          parseInt(document.getElementById("duel-h").value, 10) || 9,
+                          parseInt(document.getElementById("duel-mines").value, 10) || 10);
+      duelMAJ(duelJS.payload());
+      return;
+    }
     var q = "?seed=" + document.getElementById("duel-seed").value +
       "&w=" + document.getElementById("duel-w").value +
       "&h=" + document.getElementById("duel-h").value +
@@ -476,7 +512,18 @@ function initUI(statique) {
 
   document.getElementById("grille-duel-humain").addEventListener("click", function (e) {
     var el = e.target.closest(".case");
-    if (!el || !duelActif) return;
+    if (!el) return;
+    if (statique) {
+      if (!duelJS) return;
+      try {
+        duelMAJ(duelJS.coupHumain({ kind: "reveal", x: parseInt(el.dataset.x, 10),
+                                    y: parseInt(el.dataset.y, 10) }));
+      } catch (err) {
+        document.getElementById("duel-etat").textContent = err.message;
+      }
+      return;
+    }
+    if (!duelActif) return;
     apiPost("/api/duel/human", {
       kind: "reveal", x: parseInt(el.dataset.x, 10), y: parseInt(el.dataset.y, 10),
     }).then(duelMAJ).catch(function (err) {
@@ -486,7 +533,18 @@ function initUI(statique) {
   document.getElementById("grille-duel-humain").addEventListener("contextmenu", function (e) {
     e.preventDefault();
     var el = e.target.closest(".case");
-    if (!el || !duelActif) return;
+    if (!el) return;
+    if (statique) {
+      if (!duelJS) return;
+      try {
+        duelMAJ(duelJS.coupHumain({ kind: "flag", x: parseInt(el.dataset.x, 10),
+                                    y: parseInt(el.dataset.y, 10) }));
+      } catch (err) {
+        document.getElementById("duel-etat").textContent = err.message;
+      }
+      return;
+    }
+    if (!duelActif) return;
     apiPost("/api/duel/human", {
       kind: "flag", x: parseInt(el.dataset.x, 10), y: parseInt(el.dataset.y, 10),
     }).then(duelMAJ).catch(function () { /* drapeau déjà posé */ });
@@ -494,24 +552,11 @@ function initUI(statique) {
 
   /* ---------- adaptation au mode en ligne (statique) ---------- */
   if (statique) {
-    ["live", "duel"].forEach(function (id) {
-      var panneau = document.getElementById(id);
-      panneau.querySelectorAll(".controles, .ligne, .aide").forEach(function (el) {
-        el.classList.add("cache");
-      });
-      var note = document.createElement("p");
-      note.className = "note-locale";
-      note.innerHTML = "Ce mode est interactif et nécessite le serveur local : " +
-        "<code>demineur serve --open</code> puis " +
-        "<code>http://127.0.0.1:8765</code>.<br>" +
-        "Sur le site en ligne, explorez le Replay (heatmap et analyses incluses) " +
-        "et les Benchmarks.";
-      panneau.appendChild(note);
-    });
     var notePied = document.getElementById("note-locale");
     if (notePied) {
-      notePied.textContent = "Version en ligne — données pré-générées à chaque " +
-        "déploiement. Les modes live et duel restent locaux (demineur serve).";
+      notePied.textContent = "Version en ligne — modes interactifs 100% navigateur " +
+        "(moteur + solveur en JavaScript). Les parties jouées ici ne sont pas " +
+        "archivées : lancez demineur serve en local pour les retrouver dans le Replay.";
     }
   }
 
