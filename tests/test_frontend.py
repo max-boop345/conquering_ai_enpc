@@ -192,18 +192,21 @@ class TestFonctionsPures(unittest.TestCase):
         result_gagné = {"state": "won", "mines": [[1, 1], [2, 2]]}
         result_perdu = {"state": "lost", "mines": [[0, 0]]}
         result_sans = {"state": "won"}
+        result_playing = {"state": "playing", "mines": [[9, 9]]}
         script = (
             "const app = require(" + json.dumps(APP_JS) + ");"
             "console.log(JSON.stringify(app.bombesFinDePartie(" + json.dumps(result_gagné) + ", 3, 4)) + '|'"
             " + JSON.stringify(app.bombesFinDePartie(" + json.dumps(result_perdu) + ", 4, 4)) + '|'"
             " + JSON.stringify(app.bombesFinDePartie(" + json.dumps(result_gagné) + ", 1, 4)) + '|'"
-            " + JSON.stringify(app.bombesFinDePartie(" + json.dumps(result_sans) + ", 4, 4)));"
+            " + JSON.stringify(app.bombesFinDePartie(" + json.dumps(result_sans) + ", 4, 4)) + '|'"
+            " + JSON.stringify(app.bombesFinDePartie(" + json.dumps(result_playing) + ", 4, 4)));"
         )
-        g, p, pas_dernier, sans = _node_exec(script, {}).strip().split("|")
+        g, p, pas_dernier, sans, en_cours = _node_exec(script, {}).strip().split("|")
         self.assertEqual(json.loads(g), [[1, 1], [2, 2]])
         self.assertEqual(json.loads(p), [[0, 0]])
         self.assertEqual(pas_dernier, "null")
         self.assertEqual(sans, "null")
+        self.assertEqual(en_cours, "null")
 
     def test_heatmap_texte(self):
         script = (

@@ -396,6 +396,26 @@ function initUI(statique) {
   var liveAuto = null;
   var liveJS = null;
 
+  /* Arrête la lecture auto (statique ou locale) et réinitialise le bouton. */
+  function stopperLiveAuto() {
+    clearInterval(liveAuto);
+    liveAuto = null;
+    document.getElementById("btn-live-auto").textContent = "lecture auto";
+  }
+
+  /* Paramètres d'une nouvelle partie (live/duel) : `query` pour l'API locale
+   * (chaînes brutes), `jeu` pour les contrôleurs JS (entiers coercés). */
+  function lireParams(préfixe) {
+    var champ = function (nom) {
+      return document.getElementById(préfixe + "-" + nom).value;
+    };
+    return {
+      query: { seed: champ("seed"), w: champ("w"), h: champ("h"), mines: champ("mines") },
+      jeu: { seed: parseInt(champ("seed"), 10) || 0, w: parseInt(champ("w"), 10) || 9,
+             h: parseInt(champ("h"), 10) || 9, mines: parseInt(champ("mines"), 10) || 10 },
+    };
+  }
+
   function liveMAJ(data) {
     document.getElementById("grille-live").innerHTML =
       overlayBadge(data.state) + gridHtml(data.view, data.mines);
@@ -406,19 +426,18 @@ function initUI(statique) {
   }
 
   document.getElementById("btn-live-new").addEventListener("click", function () {
+    var p = lireParams("live");
     if (statique) {
-      liveJS = new LiveJS(parseInt(document.getElementById("live-seed").value, 10) || 0,
-                          parseInt(document.getElementById("live-w").value, 10) || 9,
-                          parseInt(document.getElementById("live-h").value, 10) || 9,
-                          parseInt(document.getElementById("live-mines").value, 10) || 10);
-      liveMAJ(liveJS.payload());
+      try {
+        liveJS = new LiveJS(p.jeu.seed, p.jeu.w, p.jeu.h, p.jeu.mines);
+        liveMAJ(liveJS.payload());
+      } catch (err) {
+        document.getElementById("live-etat").textContent = err.message;
+      }
       return;
     }
-    var q = "?seed=" + document.getElementById("live-seed").value +
-      "&w=" + document.getElementById("live-w").value +
-      "&h=" + document.getElementById("live-h").value +
-      "&mines=" + document.getElementById("live-mines").value;
-    api("/api/live/new" + q).then(liveMAJ)
+    api("/api/live/new?seed=" + p.query.seed + "&w=" + p.query.w +
+      "&h=" + p.query.h + "&mines=" + p.query.mines).then(liveMAJ)
       .catch(erreur("live-etat", "nouvelle partie impossible"));
   });
   document.getElementById("btn-live-step").addEventListener("click", function () {
@@ -431,21 +450,19 @@ function initUI(statique) {
   });
   document.getElementById("btn-live-auto").addEventListener("click", function () {
     if (liveAuto) {
-      clearInterval(liveAuto);
-      liveAuto = null;
-      this.textContent = "lecture auto";
+      stopperLiveAuto();
       return;
     }
     if (statique) {
+      if (!liveJS) {
+        document.getElementById("live-etat").textContent = "aucune partie en cours";
+        return;
+      }
       liveAuto = setInterval(function () {
-        if (!liveJS) return;
         liveJS.étape();
-        liveMAJ(liveJS.payload());
-        if (liveJS.payload().state !== "playing") {
-          clearInterval(liveAuto);
-          liveAuto = null;
-          document.getElementById("btn-live-auto").textContent = "lecture auto";
-        }
+        var p = liveJS.payload();
+        liveMAJ(p);
+        if (p.state !== "playing") stopperLiveAuto();
       }, 350);
       this.textContent = "pause";
       return;
@@ -455,11 +472,7 @@ function initUI(statique) {
         liveAuto = setInterval(function () {
           api("/api/live/step").then(function (data) {
             liveMAJ(data);
-            if (data.state !== "playing") {
-              clearInterval(liveAuto);
-              liveAuto = null;
-              document.getElementById("btn-live-auto").textContent = "lecture auto";
-            }
+            if (data.state !== "playing") stopperLiveAuto();
           }).catch(function () {
             clearInterval(liveAuto);
             liveAuto = null;
@@ -492,31 +505,33 @@ function initUI(statique) {
   }
 
   document.getElementById("btn-duel-new").addEventListener("click", function () {
+    var p = lireParams("duel");
     if (statique) {
-      duelJS = new DuelJS(parseInt(document.getElementById("duel-seed").value, 10) || 0,
-                          parseInt(document.getElementById("duel-w").value, 10) || 9,
-                          parseInt(document.getElementById("duel-h").value, 10) || 9,
-                          parseInt(document.getElementById("duel-mines").value, 10) || 10);
-      duelMAJ(duelJS.payload());
+      try {
+        duelJS = new DuelJS(p.jeu.seed, p.jeu.w, p.jeu.h, p.jeu.mines);
+        duelMAJ(duelJS.payload());
+      } catch (err) {
+        document.getElementById("duel-etat").textContent = err.message;
+      }
       return;
     }
-    var q = "?seed=" + document.getElementById("duel-seed").value +
-      "&w=" + document.getElementById("duel-w").value +
-      "&h=" + document.getElementById("duel-h").value +
-      "&mines=" + document.getElementById("duel-mines").value;
+    var q = "?seed=" + p.query.seed + "&w=" + p.query.w +
+      "&h=" + p.query.h + "&mines=" + p.query.mines;
     api("/api/duel/new" + q).then(function (data) {
       duelActif = data;
       duelMAJ(data);
     }).catch(erreur("duel-etat", "nouveau duel impossible"));
   });
 
-  document.getElementById("grille-duel-humain").addEventListener("click", function (e) {
+  /* Clic humain sur la grille duel (reveal/flag) : statique → DuelJS (erreur
+   * affichée), local → apiPost (flag refusé ignoré en silence, comme avant). */
+  function coupDuel(kind, e) {
     var el = e.target.closest(".case");
     if (!el) return;
     if (statique) {
       if (!duelJS) return;
       try {
-        duelMAJ(duelJS.coupHumain({ kind: "reveal", x: parseInt(el.dataset.x, 10),
+        duelMAJ(duelJS.coupHumain({ kind: kind, x: parseInt(el.dataset.x, 10),
                                     y: parseInt(el.dataset.y, 10) }));
       } catch (err) {
         document.getElementById("duel-etat").textContent = err.message;
@@ -525,29 +540,19 @@ function initUI(statique) {
     }
     if (!duelActif) return;
     apiPost("/api/duel/human", {
-      kind: "reveal", x: parseInt(el.dataset.x, 10), y: parseInt(el.dataset.y, 10),
+      kind: kind, x: parseInt(el.dataset.x, 10), y: parseInt(el.dataset.y, 10),
     }).then(duelMAJ).catch(function (err) {
+      if (kind === "flag") return; /* drapeau déjà posé */
       document.getElementById("duel-etat").textContent = "coup refusé: " + err.message;
     });
+  }
+
+  document.getElementById("grille-duel-humain").addEventListener("click", function (e) {
+    coupDuel("reveal", e);
   });
   document.getElementById("grille-duel-humain").addEventListener("contextmenu", function (e) {
     e.preventDefault();
-    var el = e.target.closest(".case");
-    if (!el) return;
-    if (statique) {
-      if (!duelJS) return;
-      try {
-        duelMAJ(duelJS.coupHumain({ kind: "flag", x: parseInt(el.dataset.x, 10),
-                                    y: parseInt(el.dataset.y, 10) }));
-      } catch (err) {
-        document.getElementById("duel-etat").textContent = err.message;
-      }
-      return;
-    }
-    if (!duelActif) return;
-    apiPost("/api/duel/human", {
-      kind: "flag", x: parseInt(el.dataset.x, 10), y: parseInt(el.dataset.y, 10),
-    }).then(duelMAJ).catch(function () { /* drapeau déjà posé */ });
+    coupDuel("flag", e);
   });
 
   /* ---------- adaptation au mode en ligne (statique) ---------- */
