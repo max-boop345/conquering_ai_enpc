@@ -145,5 +145,48 @@ class TestMoteurReveal(unittest.TestCase):
         self.assertIn("true lost", sortie)
 
 
+@unittest.skipUnless(NODE, "node non disponible")
+class TestRunnerJS(unittest.TestCase):
+    def _s(self, corps):
+        return "const E = " + ENGINE + ";\n" + corps
+
+    def test_format_evenement_b10(self):
+        sortie = node_exec(self._s(
+            "const runner = new E.RunnerJS(new E.Jeu(5, 5, 3, 4));\n"
+            "const e = runner.appliquer({kind: 'reveal', x: 0, y: 0}, 'R07: test');\n"
+            "console.log(e.move, e.action.kind, e.result,"
+            "            e.view_after.width, e.justification);"
+        ))
+        self.assertIn("0 reveal ok 5 R07: test", sortie)
+
+    def test_illegal_comptée(self):
+        sortie = node_exec(self._s(
+            "const runner = new E.RunnerJS(new E.Jeu(5, 5, 3, 4));\n"
+            "runner.appliquer({kind: 'reveal', x: 0, y: 0}, null);\n"
+            "const e = runner.appliquer({kind: 'reveal', x: 0, y: 0}, null);\n"
+            "console.log(e.result, e.detail !== null, runner.events.length);"
+        ))
+        self.assertIn("illegal true 2", sortie)
+
+    def test_abandon_apres_rejets(self):
+        sortie = node_exec(self._s(
+            "const runner = new E.RunnerJS(new E.Jeu(5, 5, 3, 4), 10000, 3);\n"
+            "for (let i = 0; i < 4; i++) {\n"
+            "  runner.appliquer({kind: 'reveal', x: 9, y: 9}, null);\n"
+            "}\n"
+            "const dernier = runner.events[runner.events.length - 1];\n"
+            "console.log(runner.abandon, dernier.result, dernier.action.kind);"
+        ))
+        self.assertIn("true gave_up giveup", sortie)
+
+    def test_give_up_direct(self):
+        sortie = node_exec(self._s(
+            "const runner = new E.RunnerJS(new E.Jeu(5, 5, 3, 4));\n"
+            "const e = runner.appliquer({kind: 'giveup', reason: 'test'}, null);\n"
+            "console.log(e.result, e.detail, runner.abandon);"
+        ))
+        self.assertIn("gave_up test true", sortie)
+
+
 if __name__ == "__main__":
     unittest.main()

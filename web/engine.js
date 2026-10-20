@@ -199,6 +199,71 @@ Jeu.prototype.retirerDrapeau = function (x, y) {
   this.drapeaux.delete(pos);
 };
 
+/* GameRunner JS (port B09/B10) : applique une action {kind,x,y|reason},
+ * journalise l'événement B10 (vues A15 avant/après), rejette les coups
+ * illégaux (compteur + abandon après N rejets consécutifs). */
+function RunnerJS(jeu, maxMoves, maxRejets) {
+  this.jeu = jeu;
+  this.maxMoves = maxMoves === undefined ? 10000 : maxMoves;
+  this.maxRejets = maxRejets === undefined ? 5 : maxRejets;
+  this.events = [];
+  this.abandon = false;
+  this._rejets = 0;
+}
+
+RunnerJS.prototype.appliquer = function (action, justification) {
+  var vueAvant = this.jeu.vue();
+  var event = {
+    move: this.events.length,
+    view_before: vueAvant,
+    action: action,
+    justification: justification || null,
+    view_after: vueAvant,
+    result: "ok",
+    detail: null,
+  };
+  if (action.kind === "giveup") {
+    event.result = "gave_up";
+    event.detail = action.reason || "";
+    this.abandon = true;
+    this.events.push(event);
+    return event;
+  }
+  try {
+    if (action.kind === "reveal") this.jeu.révéler(action.x, action.y);
+    else if (action.kind === "flag") this.jeu.drapeau(action.x, action.y);
+    else if (action.kind === "unflag") this.jeu.retirerDrapeau(action.x, action.y);
+    else throw new Error("kind inconnu: " + action.kind);
+    this._rejets = 0;
+    event.view_after = this.jeu.vue();
+    this.events.push(event);
+    return event;
+  } catch (err) {
+    this._rejets++;
+    event.result = "illegal";
+    event.detail = String(err.message || err);
+    this.events.push(event);
+    if (this._rejets >= this.maxRejets) {
+      this.abandon = true;
+      this.events.push({
+        move: this.events.length,
+        view_before: this.jeu.vue(),
+        action: { kind: "giveup", reason: "trop d'actions illégales" },
+        justification: null,
+        view_after: this.jeu.vue(),
+        result: "gave_up",
+        detail: this._rejets + " rejets consécutifs",
+      });
+    }
+    return event;
+  }
+};
+
+RunnerJS.prototype.plein = function () {
+  return this.events.length >= this.maxMoves;
+};
+
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { Jeu: Jeu, mulberry32: mulberry32, voisins: voisins };
+  module.exports = { Jeu: Jeu, mulberry32: mulberry32, voisins: voisins,
+                     RunnerJS: RunnerJS };
 }
