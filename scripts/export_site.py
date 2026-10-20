@@ -7,8 +7,9 @@ Génère un répertoire autonome :
   (une analyse par coup, calculée par le solveur Python — heatmap W08 et
   frontières W09 fonctionnent donc aussi en ligne).
 
-Les modes interactifs (live, duel) restent locaux : ils nécessitent le serveur
-``demineur serve`` (INV5) et le site en ligne l'explique à leur place.
+Les modes interactifs (live, duel) tournent en ligne dans le navigateur :
+moteur et solveur classique portés en JavaScript (``web/engine.js``,
+``web/solver.js``, ``web/interactif.js``), sans backend.
 
 Usage : ``python3 scripts/export_site.py [--games-dir games] [--web-dir web] [--out site]``
 """
@@ -27,7 +28,7 @@ from demineur.artifacts import list_games, load_game  # noqa: E402
 from demineur.solvers.classic import analyze  # noqa: E402
 from demineur.view import view_from_json  # noqa: E402
 
-ASSETS = ("index.html", "style.css", "app.js")
+ASSETS = ("index.html", "style.css", "app.js", "engine.js", "solver.js", "interactif.js")
 
 
 def _dump(chemin: str, data) -> None:

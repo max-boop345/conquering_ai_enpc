@@ -157,6 +157,8 @@ est servi par un petit serveur local qui lit les artefacts (logs JSONL, mémoire
 
 | session 5 | W01-W10 | Déploiement statique Netlify : scripts/export_site.py génère le site autonome (assets web + API JSON pré-générée : parties, analyses par coup pré-calculées par le solveur, benchmarks), netlify.toml (build Python, publish site/), détection de mode dans le frontend (serveur local vs statique) avec note explicative sur les onglets live/duel en ligne, footer adapté. Replay (heatmap W08 + frontière W09) et Benchmarks fonctionnent à l'identique en ligne. 199 tests verts. |
 
+| session 6 | JS/A-W14 | Port JavaScript du moteur et du solveur classique (web/engine.js, web/solver.js, web/interactif.js — INV1 respecté : le solveur ne voit que la vue), contrôleurs LiveJS/DuelJS produisant les payloads de l'API, live et duel interactifs en ligne (mode statique Netlify), mines exposées à toute fin de partie (gagnée ou perdue) dans les payloads et les artefacts, bombes affichées au coup final du replay. 259 tests verts. |
+
 Règle de mise à jour : chaque tâche terminée ajoute une ligne ici et passe à `[x]` dans sa phase.
 
 Règle de mise à jour : chaque tâche terminée ajoute une ligne ici et passe à `[x]` dans sa phase.

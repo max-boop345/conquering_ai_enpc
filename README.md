@@ -83,6 +83,10 @@ Flux de données : moteur (A15) → GameRunner (B10) → artefacts JSONL → API
   exactes (R07) + heuristique de devinette (R09) + comptage global.
   Chaque coup porte une justification courte (`--explain`, W07).
 
+Port JavaScript : `web/engine.js` + `web/solver.js` + `web/interactif.js` font
+tourner les modes live et duel en ligne (Netlify) sans backend, en respectant
+INV1.
+
 Détail des règles et preuves : `docs/classic_solver.md`. Résultats :
 `docs/benchmarks.md`.
 

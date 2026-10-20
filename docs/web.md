@@ -65,9 +65,14 @@ exécute cet export à chaque déploiement (``command = python3
 scripts/export_site.py``, ``publish = site``).
 
 Le frontend détecte le mode au chargement : serveur local (``/api/...``) ou
-site statique (``api/*.json``). En mode statique, les onglets Live et Duel —
-interactifs par nature — affichent une note explicative au lieu de boutons
-inertes, et le bandeau « serveur injoignable » ne s'affiche pas.
+site statique (``api/*.json``). En mode statique, les onglets Live et Duel
+tournent intégralement dans le navigateur : le moteur de jeu et le solveur
+classique sont portés en JavaScript (``web/engine.js``, ``web/solver.js``,
+``web/interactif.js``) et produisent les mêmes formats (vue A15, événements
+B10, payloads). INV1 y est respecté : solver.js ne reçoit jamais le plateau
+réel, et les mines ne sont exposées qu'à la fin d'une partie (gagnée ou
+perdue). Limites du mode en ligne : pas d'archivage des parties jouées
+(utiliser demineur serve en local pour les retrouver dans le Replay).
 
 Limites assumées : les parties jouées en ligne ne sont pas archivées (pas
 d'écriture), et les données datent du dernier déploiement.
