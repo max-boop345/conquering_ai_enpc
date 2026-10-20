@@ -8,3 +8,8 @@ __pycache__/
 dist/
 build/
 
+
+# site statique généré par scripts/export_site.py (Netlify build)
+site/
+.DS_Store
+*.DS_Store

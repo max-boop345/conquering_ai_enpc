@@ -142,14 +142,64 @@ function benchmarksSections(data) {
 
 /* ============ interface (DOM) ============ */
 
+/* Mapping endpoint local -> fichier statique pré-généré (mode Netlify).
+ * Retourne null pour tout ce qui nécessite le backend (live, duel). */
+function staticUrl(chemin) {
+  var m;
+  if (chemin === "/api/games") return "api/games.json";
+  if (chemin === "/api/solvers") return "api/solvers.json";
+  if (chemin === "/api/benchmarks") return "api/benchmarks.json";
+  m = chemin.match(/^\/api\/games\/([^/]+)\/analysis\/\d+$/);
+  if (m) return "api/games/" + m[1] + "/analysis.json";
+  m = chemin.match(/^\/api\/games\/([^/]+)$/);
+  if (m) return "api/games/" + m[1] + ".json";
+  return null;
+}
+
 function initApp() {
-  var api = function (chemin) {
-    return fetch(chemin).then(function (r) {
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      return r.json();
+  /* détection du mode: serveur local (Python) ou site statique pré-généré */
+  fetch("/api/solvers").then(function (r) {
+    if (r.ok) { initUI(false); return; }
+    throw new Error("pas local");
+  }).catch(function () {
+    fetch("api/solvers.json").then(function (r) {
+      if (r.ok) { initUI(true); return; }
+      throw new Error("pas statique");
+    }).catch(function () {
+      initUI(true);
+      document.getElementById("bannière-serveur").classList.remove("cache");
     });
+  });
+}
+
+function initUI(statique) {
+  var okJson = function (r) {
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return r.json();
+  };
+  var analysesCache = {};
+  function analyseStatique(id, coup) {
+    if (!analysesCache[id]) {
+      analysesCache[id] = fetch("api/games/" + id + "/analysis.json").then(okJson);
+    }
+    return analysesCache[id].then(function (data) {
+      var c = data.moves[coup];
+      if (!c) throw new Error("coup hors bornes");
+      return c;
+    });
+  }
+  var api = function (chemin) {
+    if (statique) {
+      var m = chemin.match(/^\/api\/games\/([^/]+)\/analysis\/(\d+)$/);
+      if (m) return analyseStatique(m[1], parseInt(m[2], 10));
+      var url = staticUrl(chemin);
+      if (!url) return Promise.reject(new Error("indisponible en ligne"));
+      return fetch(url).then(okJson);
+    }
+    return fetch(chemin).then(okJson);
   };
   var apiPost = function (chemin, data) {
+    if (statique) return Promise.reject(new Error("mode en ligne"));
     return fetch(chemin, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -165,13 +215,6 @@ function initApp() {
       if (cible) cible.textContent = préfixe + " — " + err.message;
     };
   };
-
-  /* ---------- état du serveur : bandeau si le backend manque ---------- */
-  api("/api/solvers").then(function () {
-    document.getElementById("bannière-serveur").classList.add("cache");
-  }).catch(function () {
-    document.getElementById("bannière-serveur").classList.remove("cache");
-  });
 
   /* ---------- onglets ---------- */
   var onglets = document.querySelectorAll(".tab");
@@ -440,6 +483,29 @@ function initApp() {
     }).then(duelMAJ).catch(function () { /* drapeau déjà posé */ });
   });
 
+  /* ---------- adaptation au mode en ligne (statique) ---------- */
+  if (statique) {
+    ["live", "duel"].forEach(function (id) {
+      var panneau = document.getElementById(id);
+      panneau.querySelectorAll(".controles, .ligne, .aide").forEach(function (el) {
+        el.classList.add("cache");
+      });
+      var note = document.createElement("p");
+      note.className = "note-locale";
+      note.innerHTML = "Ce mode est interactif et nécessite le serveur local : " +
+        "<code>demineur serve --open</code> puis " +
+        "<code>http://127.0.0.1:8765</code>.<br>" +
+        "Sur le site en ligne, explorez le Replay (heatmap et analyses incluses) " +
+        "et les Benchmarks.";
+      panneau.appendChild(note);
+    });
+    var notePied = document.getElementById("note-locale");
+    if (notePied) {
+      notePied.textContent = "Version en ligne — données pré-générées à chaque " +
+        "déploiement. Les modes live et duel restent locaux (demineur serve).";
+    }
+  }
+
   /* ---------- démarrage ---------- */
   partiesListe();
   chargerBenchmarks();
@@ -453,5 +519,5 @@ if (typeof document !== "undefined" && typeof fetch !== "undefined") {
 if (typeof module !== "undefined" && module.exports) {
   module.exports = { gridHtml, cellHtml, heatColor, heatText, eventSummary,
                      benchmarkChart, benchmarkTable, benchmarkSection,
-                     benchmarksSections, overlayBadge };
+                     benchmarksSections, overlayBadge, staticUrl };
 }

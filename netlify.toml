@@ -1,3 +1,8 @@
-# Configuration Netlify — le site statique vit dans web/
 [build]
-  publish = "web"
+  # le site est généré à chaque déploiement : assets web + API JSON pré-générée
+  # (replay, analyses par coup, benchmarks). Live/duel restent locaux (INV5).
+  command = "python3 scripts/export_site.py"
+  publish = "site"
+
+[build.environment]
+  PYTHON_VERSION = "3.12"

@@ -155,6 +155,8 @@ est servi par un petit serveur local qui lit les artefacts (logs JSONL, mémoire
 
 | session 4 | W01/W13/W16 | En-tête Cache-Control: no-store sur les assets statiques (un navigateur qui gardeait l'ancien app.js en cache ne voyait pas les nouveaux rendus), unification des routes live sur LiveState.payload(), mines exposées aussi en mode live quand le solveur perd. 190 tests verts. |
 
+| session 5 | W01-W10 | Déploiement statique Netlify : scripts/export_site.py génère le site autonome (assets web + API JSON pré-générée : parties, analyses par coup pré-calculées par le solveur, benchmarks), netlify.toml (build Python, publish site/), détection de mode dans le frontend (serveur local vs statique) avec note explicative sur les onglets live/duel en ligne, footer adapté. Replay (heatmap W08 + frontière W09) et Benchmarks fonctionnent à l'identique en ligne. 199 tests verts. |
+
 Règle de mise à jour : chaque tâche terminée ajoute une ligne ici et passe à `[x]` dans sa phase.
 
 Règle de mise à jour : chaque tâche terminée ajoute une ligne ici et passe à `[x]` dans sa phase.

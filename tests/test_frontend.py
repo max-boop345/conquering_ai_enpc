@@ -95,6 +95,29 @@ class TestRenduGrille(unittest.TestCase):
         # les cases non minées restent rendues normalement
         self.assertIn("cachée", html)
 
+    def test_static_url_mapping(self):
+        # le mode en ligne mappe les endpoints locaux vers les fichiers pré-générés
+        script = (
+            "const app = require(" + json.dumps(APP_JS) + ");"
+            "console.log(JSON.stringify({"
+            "games: app.staticUrl('/api/games'), "
+            "solvers: app.staticUrl('/api/solvers'), "
+            "bench: app.staticUrl('/api/benchmarks'), "
+            "detail: app.staticUrl('/api/games/classic-seed42'), "
+            "analyse: app.staticUrl('/api/games/classic-seed42/analysis/3'), "
+            "live: app.staticUrl('/api/live/step'), "
+            "duel: app.staticUrl('/api/duel/new?seed=1')}));"
+        )
+        m = json.loads(_node_exec(script, {}))
+        self.assertEqual(m["games"], "api/games.json")
+        self.assertEqual(m["solvers"], "api/solvers.json")
+        self.assertEqual(m["bench"], "api/benchmarks.json")
+        self.assertEqual(m["detail"], "api/games/classic-seed42.json")
+        self.assertEqual(m["analyse"], "api/games/classic-seed42/analysis.json")
+        # live et duel nécessitent le backend: indisponibles en statique
+        self.assertIsNone(m["live"])
+        self.assertIsNone(m["duel"])
+
     def test_bandeau_fin_de_partie(self):
         script = (
             "const app = require(" + json.dumps(APP_JS) + ");"

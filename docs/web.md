@@ -49,3 +49,25 @@ l'analyse est recalculée à la demande, à partir de la seule vue joueur.
 demineur serve --open            # ouvre le navigateur local
 # équivalent : PYTHONPATH=src python3 -m demineur.cli serve
 ```
+
+## Déploiement statique (Netlify)
+
+Le site fonctionne aussi **sans backend**, pour un hébergement statique :
+
+```bash
+python3 scripts/export_site.py   # génère site/ (assets + API JSON pré-générée)
+```
+
+Le répertoire ``site/`` contient tout ce que les onglets Replay et Benchmarks
+consomment — y compris **une analyse par coup** (heatmap W08, frontières W09),
+pré-calculée par le solveur Python au moment de l'export. ``netlify.toml``
+exécute cet export à chaque déploiement (``command = python3
+scripts/export_site.py``, ``publish = site``).
+
+Le frontend détecte le mode au chargement : serveur local (``/api/...``) ou
+site statique (``api/*.json``). En mode statique, les onglets Live et Duel —
+interactifs par nature — affichent une note explicative au lieu de boutons
+inertes, et le bandeau « serveur injoignable » ne s'affiche pas.
+
+Limites assumées : les parties jouées en ligne ne sont pas archivées (pas
+d'écriture), et les données datent du dernier déploiement.
