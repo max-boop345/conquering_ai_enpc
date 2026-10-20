@@ -1,5 +1,6 @@
 """Tests node des contrôleurs interactifs JS — payloads identiques à l'API."""
 
+import json
 import unittest
 
 from tests.js_harness import NODE, node_exec, web_js
@@ -18,11 +19,18 @@ class TestLiveJS(unittest.TestCase):
             "  if (live.payload().state !== 'playing') break;\n"
             "}\n"
             "const p = live.payload();\n"
-            "console.log(p.state, p.view.kind, p.moves > 0,"
-            "            p.event !== null, p.event.justification !== null,"
-            "            (p.mines || []).length >= 2);"
+            "console.log(JSON.stringify({state: p.state, kind: p.view.kind,"
+            "            moves: p.moves, aUnEvenement: p.event !== null,"
+            "            justification: p.event && p.event.justification !== null,"
+            "            nbMines: (p.mines || []).length}));"
         )
-        self.assertIn("true true true", sortie)
+        d = json.loads(sortie)
+        self.assertIn(d["state"], ("won", "lost"))
+        self.assertEqual(d["kind"], "view")
+        self.assertGreater(d["moves"], 0)
+        self.assertIs(d["aUnEvenement"], True)
+        self.assertIs(d["justification"], True)
+        self.assertGreaterEqual(d["nbMines"], 2)
 
     def test_payload_initial(self):
         sortie = node_exec(
@@ -40,15 +48,24 @@ class TestDuelJS(unittest.TestCase):
             "const I = " + INTERACTIF + ";\n"
             "const duel = new I.DuelJS(5, 5, 5, 3);\n"
             "const p0 = duel.coupHumain({kind: 'reveal', x: 0, y: 0});\n"
-            "console.log('coup1:', p0.human_state, p0.solver_state,"
-            "            p0.human_mines === undefined);\n"
             "const mine = duel.humain.positionsMines()[0];\n"
             "const p1 = duel.coupHumain({kind: 'reveal', x: mine[0], y: mine[1]});\n"
-            "console.log('fin:', p1.human_state, p1.solver_state,"
-            "            Array.isArray(p1.human_mines));"
+            "console.log(JSON.stringify({"
+            "  p0: {human_state: p0.human_state, solver_state: p0.solver_state,"
+            "       human_mines_absentes: p0.human_mines === undefined},"
+            "  p1: {human_state: p1.human_state, solver_state: p1.solver_state,"
+            "       human_mines: p1.human_mines}"
+            "}));"
         )
-        self.assertIn("coup1: playing playing true", sortie)
-        self.assertIn("fin: lost", sortie)
+        d = json.loads(sortie)
+        p0, p1 = d["p0"], d["p1"]
+        self.assertEqual(p0["human_state"], "playing")
+        self.assertEqual(p0["solver_state"], "playing")
+        self.assertIs(p0["human_mines_absentes"], True)
+        self.assertEqual(p1["human_state"], "lost")
+        self.assertNotEqual(p1["solver_state"], "playing")
+        self.assertIsInstance(p1["human_mines"], list)
+        self.assertGreaterEqual(len(p1["human_mines"]), 2)
 
     def test_coup_illégal_rejeté(self):
         sortie = node_exec(
@@ -68,11 +85,14 @@ class TestDuelJS(unittest.TestCase):
             "duel.coupHumain({kind: 'reveal', x: 0, y: 0});\n"
             "const mine = duel.humain.positionsMines()[0];\n"
             "const p = duel.coupHumain({kind: 'reveal', x: mine[0], y: mine[1]});\n"
-            "console.log(Array.isArray(p.human_mines),"
-            "            p.solver_state !== 'playing' ?"
-            "              Array.isArray(p.solver_mines) : true);"
+            "console.log(JSON.stringify({human_mines: p.human_mines,"
+            "            solver_state: p.solver_state,"
+            "            solver_mines: p.solver_mines}));"
         )
-        self.assertIn("true true", sortie)
+        d = json.loads(sortie)
+        self.assertIsInstance(d["human_mines"], list)
+        self.assertNotEqual(d["solver_state"], "playing")
+        self.assertIsInstance(d["solver_mines"], list)
 
 
 if __name__ == "__main__":

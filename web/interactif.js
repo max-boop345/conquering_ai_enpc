@@ -1,6 +1,8 @@
-/* Contrôleurs interactifs côté navigateur — produisent les MÊMES payloads que
- * l'API Python (/api/live/*, /api/duel/*) : la couche app.js ne fait pas la
- * différence. Dépendances : engine.js (Jeu, RunnerJS), solver.js
+/* Contrôleurs interactifs côté navigateur — produisent les payloads au format
+ * de l'API Python (/api/live/*, /api/duel/*) : mêmes clés, la couche app.js ne
+ * fait pas la différence. Les mines sont exposées à toute fin de partie —
+ * gagnée ou perdue — contrat cible que le backend Python rejoint (tâche 10 du
+ * plan). Dépendances : engine.js (Jeu, RunnerJS), solver.js
  * (SolveurClassique). En navigateur, globals ; sous node (tests), require. */
 
 "use strict";
@@ -11,20 +13,26 @@ var RunnerJS_ = (typeof RunnerJS !== "undefined") ?
 var SolveurClassique_ = (typeof SolveurClassique !== "undefined") ?
   SolveurClassique : require("./solver.js").SolveurClassique;
 
+/* Un coup de solveur sur (jeu, runner) : décision puis application. */
+function jouerUnCoup(jeu, runner, solver) {
+  var d = solver.décider(jeu.vue());
+  return runner.appliquer(d.action, d.justification);
+}
+
 /* Équivalent JS de LiveState (W13). Mines exposées dès que la partie est
  * terminée — gagnée OU perdue (aucune fuite tant qu'on joue : INV1). */
 function LiveJS(seed, width, height, mines) {
   this.jeu = new Jeu_(width, height, mines, seed);
   this.runner = new RunnerJS_(this.jeu);
   this.solver = new SolveurClassique_();
-  this.seed = seed;
 }
 
 LiveJS.prototype.étape = function () {
-  if (this.jeu.state !== "playing" || this.runner.abandon) return null;
-  var vue = this.jeu.vue();
-  var d = this.solver.décider(vue);
-  return this.runner.appliquer(d.action, d.justification);
+  if (this.jeu.state !== "playing" || this.runner.abandon) {
+    return this.runner.events.length > 0 ?
+      this.runner.events[this.runner.events.length - 1] : null;
+  }
+  return jouerUnCoup(this.jeu, this.runner, this.solver);
 };
 
 LiveJS.prototype.payload = function () {
@@ -48,7 +56,6 @@ function DuelJS(seed, width, height, mines) {
   this.humainRunner = new RunnerJS_(this.humain);
   this.solveurRunner = new RunnerJS_(this.solveurJeu);
   this.solver = new SolveurClassique_();
-  this.seed = seed;
 }
 
 DuelJS.prototype.coupHumain = function (action) {
@@ -71,8 +78,7 @@ DuelJS.prototype.coupHumain = function (action) {
 
 DuelJS.prototype.étapeSolveur = function () {
   if (this.solveurJeu.state !== "playing" || this.solveurRunner.abandon) return;
-  var d = this.solver.décider(this.solveurJeu.vue());
-  this.solveurRunner.appliquer(d.action, d.justification);
+  jouerUnCoup(this.solveurJeu, this.solveurRunner, this.solver);
 };
 
 DuelJS.prototype.payload = function () {
