@@ -149,5 +149,55 @@ class TestCspJS(unittest.TestCase):
         self.assertIn("ConfigurationImpossible", sortie)
 
 
+@unittest.skipUnless(NODE, "node non disponible")
+class TestProbabilitésJS(unittest.TestCase):
+    def test_cinquante_cinquante(self):
+        fixture = vue_fixture({(1, 0): 1}, width=3, height=1, mines=1)
+        sortie = node_exec(
+            "const S = " + SOLVER + ";\n"
+            "const a = S.analyser(@fixture:vue);\n"
+            "console.log(a.probabilities['0,0'].toFixed(2),"
+            "            a.probabilities['2,0'].toFixed(2), a.exact);",
+            {"vue": fixture},
+        )
+        self.assertIn("0.50 0.50 true", sortie)
+
+    def test_hors_frontière_déduite(self):
+        fixture = vue_fixture({(1, 0): 1}, width=4, height=1, mines=2)
+        sortie = node_exec(
+            "const S = " + SOLVER + ";\n"
+            "const a = S.analyser(@fixture:vue);\n"
+            "console.log(a.probabilities['0,0'].toFixed(2),"
+            "            a.probabilities['3,0'].toFixed(2));",
+            {"vue": fixture},
+        )
+        self.assertIn("0.50 1.00", sortie)
+
+    def test_somme_égale_mines_restantes(self):
+        specs = [({}, 3, 1, 1), ({(1, 0): 1}, 4, 1, 2), ({(1, 0): 1, (2, 0): 1}, 5, 1, 2)]
+        for numbers, w, _h, mines in specs:
+            fixture = vue_fixture(numbers, width=w, height=1, mines=mines)
+            sortie = node_exec(
+                "const S = " + SOLVER + ";\n"
+                "const a = S.analyser(@fixture:vue);\n"
+                "let somme = 0;\n"
+                "Object.keys(a.probabilities).forEach(k => { somme += a.probabilities[k]; });\n"
+                "console.log(somme.toFixed(6));",
+                {"vue": fixture},
+            )
+            self.assertAlmostEqual(float(sortie.strip()), mines, places=5,
+                                   msg=str(numbers))
+
+    def test_aucune_contrainte_uniforme(self):
+        fixture = vue_fixture({}, width=3, height=1, mines=1)
+        sortie = node_exec(
+            "const S = " + SOLVER + ";\n"
+            "const a = S.analyser(@fixture:vue);\n"
+            "console.log(a.probabilities['1,0'].toFixed(4), a.exact);",
+            {"vue": fixture},
+        )
+        self.assertIn("0.3333 true", sortie)
+
+
 if __name__ == "__main__":
     unittest.main()

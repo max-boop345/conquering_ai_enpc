@@ -271,11 +271,236 @@ function classer(cellules, solutions) {
   return { toujours: toujours, jamais: jamais };
 }
 
+/* C(n, k) exact (0 hors domaine). */
+function comb(n, k) {
+  if (k < 0 || k > n) return 0;
+  var r = 1;
+  for (var i = 1; i <= k; i++) r = r * (n - k + i) / i;
+  return Math.round(r);
+}
+function convolue(a, b) {
+  var out = {};
+  Object.keys(a).forEach(function (ja) {
+    Object.keys(b).forEach(function (jb) {
+      var j = parseInt(ja, 10) + parseInt(jb, 10);
+      out[j] = (out[j] || 0) + a[ja] * b[jb];
+    });
+  });
+  return out;
+}
+
+function compterDrapeaux(vue) {
+  var n = 0;
+  for (var y = 0; y < vue.height; y++) {
+    for (var x = 0; x < vue.width; x++) {
+      if (vue.grid[y][x].state === "flagged") n++;
+    }
+  }
+  return n;
+}
+function casesCachées(vue) {
+  var out = [];
+  for (var y = 0; y < vue.height; y++) {
+    for (var x = 0; x < vue.width; x++) {
+      if (vue.grid[y][x].state === "hidden") out.push(posClé(x, y));
+    }
+  }
+  return out;
+}
+function uniformiser(vue) {
+  var cachées = casesCachées(vue);
+  var p = cachées.length > 0 ? (vue.mines_count - compterDrapeaux(vue)) /
+                                cachées.length : 0;
+  var out = {};
+  cachées.forEach(function (c) { out[c] = p; });
+  return out;
+}
+
+/* R07 : probabilité exacte d'être une mine pour chaque case cachée. */
+function probabilitésExactes(vue, comps) {
+  var m = vue.mines_count - compterDrapeaux(vue);
+  var cachées = casesCachées(vue);
+  if (cachées.length === 0) return {};
+  if (m < 0) return uniformiser(vue);
+  var frontier = new Set();
+  comps.forEach(function (comp) {
+    comp.cells.forEach(function (p) { frontier.add(p); });
+  });
+  var dehors = cachées.filter(function (p) { return !frontier.has(p); });
+  var nDehors = dehors.length;
+  var fs = [], gs = [];
+  comps.forEach(function (comp) {
+    var f = {}, g = {};
+    comp.cells.forEach(function (p) { g[p] = {}; });
+    comp.solutions.forEach(function (sol) {
+      var j = sol.size;
+      f[j] = (f[j] || 0) + 1;
+      sol.forEach(function (p) { g[p][j] = (g[p][j] || 0) + 1; });
+    });
+    fs.push(f);
+    gs.push(g);
+  });
+  var W = { 0: 1 };
+  fs.forEach(function (f) { W = convolue(W, f); });
+  var N = 0;
+  Object.keys(W).forEach(function (J) {
+    N += W[J] * comb(nDehors, m - parseInt(J, 10));
+  });
+  if (N === 0) return uniformiser(vue);
+  var probas = {};
+  comps.forEach(function (comp, i) {
+    var Wmoins = { 0: 1 };
+    fs.forEach(function (f, j) { if (j !== i) Wmoins = convolue(Wmoins, f); });
+    comp.cells.forEach(function (p) {
+      var num = 0;
+      Object.keys(gs[i][p]).forEach(function (js) {
+        Object.keys(Wmoins).forEach(function (Jp) {
+          num += gs[i][p][js] * Wmoins[Jp] *
+                 comb(nDehors, m - parseInt(js, 10) - parseInt(Jp, 10));
+        });
+      });
+      probas[p] = num / N;
+    });
+  });
+  dehors.forEach(function (p) {
+    var num = 0;
+    Object.keys(W).forEach(function (J) {
+      num += W[J] * comb(nDehors - 1, m - parseInt(J, 10) - 1);
+    });
+    probas[p] = num / N;
+  });
+  return probas;
+}
+
+/* Analyse complète (équivalent Python analyze). Sortie :
+ * { safe, mines, probabilities, components, constraints, exact }. */
+function analyser(vue) {
+  var contraintes = extraireContraintes(vue);
+  var d = déduire(contraintes);
+  var résultat = {
+    safe: d.safe,
+    mines: d.mines,
+    probabilities: {},
+    components: [],
+    constraints: contraintes.map(function (c) {
+      return { cells: Array.from(c.cells).map(parseClé), count: c.count };
+    }),
+    exact: true,
+  };
+  var minesConnues = new Set(Object.keys(d.mines));
+  var réduites = [];
+  contraintes.forEach(function (c) {
+    var cells = différence(c.cells, minesConnues);
+    var count = c.count - tailleIntersection(c.cells, minesConnues);
+    if (cells.size > 0 && count > 0) réduites.push({ cells: cells, count: count });
+  });
+  var compsData = [];
+  composantes(réduites).forEach(function (groupe) {
+    var cellules = [];
+    var vu = new Set();
+    groupe.forEach(function (c) {
+      c.cells.forEach(function (p) {
+        if (!vu.has(p)) { vu.add(p); cellules.push(p); }
+      });
+    });
+    cellules.sort();
+    résultat.components.push({
+      cells: cellules.map(parseClé),
+      constraints: groupe.map(function (c) {
+        return { cells: Array.from(c.cells).map(parseClé), count: c.count };
+      }),
+    });
+    try {
+      var sols = énumérer(cellules, groupe);
+      var classe = classer(cellules, sols);
+      classe.jamais.forEach(function (p) {
+        if (!(p in résultat.safe)) {
+          var xy = parseClé(p);
+          résultat.safe[p] = "R06: jamais-mine (" + sols.length +
+                             " solutions) → (" + xy[0] + ", " + xy[1] + ") sûr";
+        }
+      });
+      classe.toujours.forEach(function (p) {
+        if (!(p in résultat.mines)) {
+          var xy = parseClé(p);
+          résultat.mines[p] = "R06: toujours-mine (" + sols.length +
+                              " solutions) → (" + xy[0] + ", " + xy[1] + ") mine";
+        }
+      });
+      compsData.push({ cells: cellules, solutions: sols });
+    } catch (e) {
+      if (e.name === "ComponentTooLarge") {
+        /* R17 : repli — sous-contraintes (classification exacte), uniforme sinon */
+        résultat.exact = false;
+        découper(groupe, MAX_CELLULES_CSP).forEach(function (sous) {
+          var sc = [];
+          var vu2 = new Set();
+          sous.forEach(function (c) {
+            c.cells.forEach(function (p) {
+              if (!vu2.has(p)) { vu2.add(p); sc.push(p); }
+            });
+          });
+          sc.sort();
+          try {
+            var ss = énumérer(sc, sous);
+            var cl = classer(sc, ss);
+            cl.jamais.forEach(function (p) {
+              if (!(p in résultat.safe)) {
+                var xy = parseClé(p);
+                résultat.safe[p] = "R17: sous-contrainte (" + ss.length +
+                                   " solutions) → (" + xy[0] + ", " + xy[1] + ") sûr";
+              }
+            });
+            cl.toujours.forEach(function (p) {
+              if (!(p in résultat.mines)) {
+                var xy = parseClé(p);
+                résultat.mines[p] = "R17: sous-contrainte (" + ss.length +
+                                    " solutions) → (" + xy[0] + ", " + xy[1] + ") mine";
+              }
+            });
+          } catch (e2) { /* plafond encore dépassé : règles R02-R04 seules */ }
+        });
+      } else if (e.name === "ConfigurationImpossible") {
+        throw e; /* R12 : propagé, traité par décider() */
+      } else {
+        throw e;
+      }
+    }
+  });
+  if (résultat.exact) {
+    résultat.probabilities = probabilitésExactes(vue, compsData);
+  }
+  if (!résultat.exact || Object.keys(résultat.probabilities).length === 0) {
+    résultat.probabilities = uniformiser(vue);
+  }
+  return résultat;
+}
+
+/* Découpe une composante trop grande en sous-groupes (repli R17). */
+function découper(groupe, tailleMax) {
+  var clusters = [];
+  var courant = [];
+  var cellules = new Set();
+  groupe.forEach(function (c) {
+    if (courant.length > 0 && cellules.size + c.cells.size > tailleMax) {
+      clusters.push(courant);
+      courant = [];
+      cellules = new Set();
+    }
+    courant.push(c);
+    c.cells.forEach(function (p) { cellules.add(p); });
+  });
+  if (courant.length > 0) clusters.push(courant);
+  return clusters;
+}
+
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     posClé: posClé, parseClé: parseClé,
     extraireContraintes: extraireContraintes, déduire: déduire,
     composantes: composantes, énumérer: énumérer, classer: classer,
     MAX_CELLULES_CSP: MAX_CELLULES_CSP, MAX_SOLUTIONS_CSP: MAX_SOLUTIONS_CSP,
+    analyser: analyser, probabilitésExactes: probabilitésExactes,
+    uniformiser: uniformiser, comb: comb, casesCachées: casesCachées,
   };
 }
