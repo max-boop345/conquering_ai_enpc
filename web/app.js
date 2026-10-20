@@ -53,6 +53,14 @@ function overlayBadge(state) {
   return "";
 }
 
+/* Mines à afficher au coup final d'une partie terminée (replay) :
+ * uniquement au dernier coup, uniquement si l'artefact les archive. */
+function bombesFinDePartie(result, coup, total) {
+  if (!result || coup < total - 1) return null;
+  if (result.state !== "won" && result.state !== "lost") return null;
+  return result.mines || null;
+}
+
 /* Couleur de heatmap (W08) : vert (probabilité nulle) → rouge (probabilité
  * forte). La teinte couvre [0, 0.5] pour bien distinguer les valeurs usuelles
  * (densité de mines ~0.12 en beginner, 50/50 = 0.5). */
@@ -265,9 +273,9 @@ function initUI(statique) {
     });
   }
 
-  function afficherVue(vueJson, event) {
+  function afficherVue(vueJson, event, mines) {
     var zone = document.getElementById("grille-replay");
-    zone.innerHTML = gridHtml(vueJson);
+    zone.innerHTML = gridHtml(vueJson, mines || []);
     document.getElementById("justification").textContent = eventSummary(event);
     document.getElementById("compteur-coups").textContent =
       "coup " + (état.coup + 1) + " / " + état.partie.events.length;
@@ -327,7 +335,8 @@ function initUI(statique) {
     coup = Math.max(0, Math.min(n - 1, coup));
     état.coup = coup;
     var event = état.partie.events[coup];
-    afficherVue(event.view_after, event);
+    var bombes = bombesFinDePartie(état.partie.result, coup, n);
+    afficherVue(event.view_after, event, bombes);
   }
 
   function vitesse() {
@@ -518,6 +527,7 @@ if (typeof document !== "undefined" && typeof fetch !== "undefined") {
 /* export pour les tests (node) */
 if (typeof module !== "undefined" && module.exports) {
   module.exports = { gridHtml, cellHtml, heatColor, heatText, eventSummary,
+                     bombesFinDePartie,
                      benchmarkChart, benchmarkTable, benchmarkSection,
                      benchmarksSections, overlayBadge, staticUrl };
 }
