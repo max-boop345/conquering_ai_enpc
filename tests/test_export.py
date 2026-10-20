@@ -1,7 +1,8 @@
 """Tests de l'export statique du site (mode Netlify) : API pré-générée en JSON.
 
 Le site déployé doit fonctionner sans backend : replay, benchmarks et analyses
-sont servis comme fichiers statiques ; live/duel restent des modes locaux.
+sont servis comme fichiers statiques ; live/duel tournent en navigateur via le
+port JavaScript (web/engine.js, web/solver.js, web/interactif.js).
 """
 
 import json
@@ -38,7 +39,8 @@ class TestExportStatique(unittest.TestCase):
             return json.load(f)
 
     def test_assets_web_copiés(self):
-        for fichier in ("index.html", "style.css", "app.js"):
+        for fichier in ("index.html", "style.css", "app.js",
+                        "engine.js", "solver.js", "interactif.js"):
             chemin = os.path.join(self.dossier, fichier)
             self.assertTrue(os.path.isfile(chemin), f"{fichier} manquant")
             self.assertGreater(os.path.getsize(chemin), 100)

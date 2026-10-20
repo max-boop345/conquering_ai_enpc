@@ -1,6 +1,7 @@
 [build]
-  # le site est généré à chaque déploiement : assets web + API JSON pré-générée
-  # (replay, analyses par coup, benchmarks). Live/duel restent locaux (INV5).
+  # le site est généré à chaque déploiement : assets web (dont le port JS
+  # moteur+solveur pour live/duel en navigateur) + API JSON pré-générée
+  # (replay, analyses par coup, benchmarks).
   command = "python3 scripts/export_site.py"
   publish = "site"
 
