@@ -199,5 +199,96 @@ class TestProbabilitésJS(unittest.TestCase):
         self.assertIn("0.3333 true", sortie)
 
 
+@unittest.skipUnless(NODE, "node non disponible")
+class TestDéciderJS(unittest.TestCase):
+    def test_premier_coup(self):
+        fixture = vue_fixture({}, width=9, height=9, mines=10)
+        sortie = node_exec(
+            "const S = " + SOLVER + ";\n"
+            "const d = new S.SolveurClassique().décider(@fixture:vue);\n"
+            "console.log(d.action.kind, d.justification.indexOf('guess') >= 0);",
+            {"vue": fixture},
+        )
+        self.assertIn("reveal true", sortie)
+
+    def test_coup_sûr_avant_guess(self):
+        # Fixture ajustée (leçon lot A) : en 4x2, (2,1) a plus de voisins
+        # cachés que (2,0) et le tie-break cascade choisit (2,1) ;
+        # en 3x1 le seul voisin caché de (1,0) est (2,0).
+        # Assertion identique au plan.
+        fixture = vue_fixture({(1, 0): 1}, flags={(0, 0)},
+                               width=3, height=1, mines=2)
+        sortie = node_exec(
+            "const S = " + SOLVER + ";\n"
+            "const d = new S.SolveurClassique().décider(@fixture:vue);\n"
+            "console.log(d.action.kind, d.action.x, d.action.y,"
+            "            d.justification.indexOf('R02') === 0);",
+            {"vue": fixture},
+        )
+        self.assertIn("reveal 2 0 true", sortie)
+
+    def test_drapeau_sur_toujours_mine(self):
+        fixture = vue_fixture({(1, 0): 2}, width=3, height=1, mines=2)
+        sortie = node_exec(
+            "const S = " + SOLVER + ";\n"
+            "const d = new S.SolveurClassique().décider(@fixture:vue);\n"
+            "console.log(d.action.kind);",
+            {"vue": fixture},
+        )
+        self.assertIn("flag", sortie)
+
+    def test_comptage_global_p0(self):
+        fixture = vue_fixture({(1, 0): 1}, width=4, height=1, mines=1)
+        sortie = node_exec(
+            "const S = " + SOLVER + ";\n"
+            "const d = new S.SolveurClassique().décider(@fixture:vue);\n"
+            "console.log(d.action.x, d.action.y,"
+            "            d.justification.indexOf('R07') === 0);",
+            {"vue": fixture},
+        )
+        self.assertIn("3 0 true", sortie)
+
+    def test_guess_justifié(self):
+        fixture = vue_fixture({(1, 0): 1}, width=3, height=1, mines=1)
+        sortie = node_exec(
+            "const S = " + SOLVER + ";\n"
+            "const d = new S.SolveurClassique().décider(@fixture:vue);\n"
+            "console.log(d.action.kind, d.justification.indexOf('guess') >= 0,"
+            "            d.justification.indexOf('p=0.500') >= 0);",
+            {"vue": fixture},
+        )
+        self.assertIn("reveal true true", sortie)
+
+    def test_partie_experte_complète(self):
+        # moteur + solveur JS, une partie experte entière, zéro coup illégal
+        sortie = node_exec(
+            "const S = " + SOLVER + ";\n"
+            "const E = " + web_js("engine.js") + ";\n"
+            "const t0 = Date.now();\n"
+            "const jeu = new E.Jeu(30, 16, 99, 1);\n"
+            "const runner = new E.RunnerJS(jeu);\n"
+            "const s = new S.SolveurClassique();\n"
+            "let illégaux = 0;\n"
+            "while (jeu.state === 'playing' && !runner.abandon && !runner.plein()) {\n"
+            "  const d = s.décider(jeu.vue());\n"
+            "  const e = runner.appliquer(d.action, d.justification);\n"
+            "  if (e.result === 'illegal') illégaux++;\n"
+            "}\n"
+            "console.log(jeu.state, illégaux, Date.now() - t0 < 10000);"
+        )
+        self.assertIn("won 0 true", sortie)
+
+    def test_déterminisme(self):
+        fixture = vue_fixture({(1, 0): 1}, width=3, height=1, mines=1)
+        sortie = node_exec(
+            "const S = " + SOLVER + ";\n"
+            "const a = new S.SolveurClassique().décider(@fixture:vue);\n"
+            "const b = new S.SolveurClassique().décider(@fixture:vue);\n"
+            "console.log(JSON.stringify(a) === JSON.stringify(b));",
+            {"vue": fixture},
+        )
+        self.assertIn("true", sortie)
+
+
 if __name__ == "__main__":
     unittest.main()

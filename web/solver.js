@@ -494,6 +494,109 @@ function découper(groupe, tailleMax) {
   return clusters;
 }
 
+function nbVoisinsÉtat(vue, x, y, état) {
+  var n = 0;
+  voisinsVue(vue, x, y).forEach(function (v) {
+    if (vue.grid[v[1]][v[0]].state === état) n++;
+  });
+  return n;
+}
+function pénalitéBord(vue, x, y) {
+  return ((x === 0 || x === vue.width - 1) ? 1 : 0) +
+         ((y === 0 || y === vue.height - 1) ? 1 : 0);
+}
+
+/* Port de ClassicSolver (R08-R12) : coup sûr en priorité (cascade potentielle
+ * maximale), sinon drapeau sur une mine certaine, sinon guess — probabilité
+ * minimale, voisins révélés, intérieur d'abord, (y,x). */
+function SolveurClassique() {}
+
+SolveurClassique.prototype.décider = function (vue) {
+  if (vue.state !== "playing") {
+    return { action: { kind: "giveup", reason: "partie déjà terminée" },
+             justification: "partie déjà terminée" };
+  }
+  var cachées = casesCachées(vue);
+  if (cachées.length === 0) {
+    return { action: { kind: "giveup", reason: "aucune case cachée" },
+             justification: "aucune case cachée disponible" };
+  }
+  var d = null;
+  var a = null;
+  try {
+    var contraintes = extraireContraintes(vue);
+    d = déduire(contraintes);
+    var sûrs = Object.keys(d.safe);
+    var minés = Object.keys(d.mines);
+    if (sûrs.length === 0 && minés.length === 0) {
+      a = analyser(vue);
+      if (a.exact) {
+        cachées.forEach(function (p) {
+          if (!(p in a.safe) && a.probabilities[p] < 1e-9) {
+            var xy = parseClé(p);
+            a.safe[p] = "R07: comptage global p=0 → (" + xy[0] + ", " + xy[1] + ") sûr";
+          }
+        });
+      }
+    }
+  } catch (e) {
+    if (e.name === "ConfigurationImpossible" ||
+        String(e.message).indexOf("contrainte impossible") >= 0) {
+      return { action: { kind: "giveup",
+                         reason: "configuration impossible: " + e.message },
+               justification: "R12: configuration impossible — " + e.message };
+    }
+    throw e;
+  }
+  var source = a !== null ? a : d;
+  if (Object.keys(source.safe).length > 0) {
+    var pos = Object.keys(source.safe).reduce(function (meilleur, p) {
+      if (meilleur === null) return p;
+      var xy = parseClé(p), mxy = parseClé(meilleur);
+      var score = nbVoisinsÉtat(vue, xy[0], xy[1], "hidden");
+      var mscore = nbVoisinsÉtat(vue, mxy[0], mxy[1], "hidden");
+      if (score !== mscore) return score > mscore ? p : meilleur;
+      if (xy[1] !== mxy[1]) return xy[1] > mxy[1] ? p : meilleur;
+      return xy[0] > mxy[0] ? p : meilleur;
+    }, null);
+    var px = parseClé(pos);
+    return { action: { kind: "reveal", x: px[0], y: px[1] },
+             justification: source.safe[pos] };
+  }
+  if (Object.keys(source.mines).length > 0) {
+    var posM = Object.keys(source.mines).sort(function (p, q) {
+      var a2 = parseClé(p), b2 = parseClé(q);
+      return (a2[1] - b2[1]) || (a2[0] - b2[0]);
+    })[0];
+    var mx = parseClé(posM);
+    return { action: { kind: "flag", x: mx[0], y: mx[1] },
+             justification: source.mines[posM] };
+  }
+  /* R09 : guess — probabilité minimale, voisins révélés, intérieur, (y,x) */
+  var probas = a !== null ? a.probabilities : uniformiser(vue);
+  var exact = a !== null && a.exact;
+  var posG = cachées.reduce(function (meilleur, p) {
+    if (meilleur === null) return p;
+    var xy = parseClé(p), myx = parseClé(meilleur);
+    var clé = function (pos2, xy2) {
+      return [Math.round((probas[pos2] === undefined ? 1 : probas[pos2]) * 1e9),
+              -nbVoisinsÉtat(vue, xy2[0], xy2[1], "revealed"),
+              pénalitéBord(vue, xy2[0], xy2[1]), xy2[1], xy2[0]];
+    };
+    var ca = clé(p, xy), cb = clé(meilleur, myx);
+    for (var i = 0; i < ca.length; i++) {
+      if (ca[i] !== cb[i]) return ca[i] < cb[i] ? p : meilleur;
+    }
+    return meilleur;
+  }, null);
+  var gx = parseClé(posG);
+  var pValue = probas[posG] === undefined ? 1 : probas[posG];
+  var just = exact
+    ? "R07: guess p=" + pValue.toFixed(3) + " → (" + gx[0] + ", " + gx[1] + ")"
+    : "R17: guess uniforme p=" + pValue.toFixed(3) + " → (" + gx[0] + ", " + gx[1] + ")";
+  return { action: { kind: "reveal", x: gx[0], y: gx[1] }, justification: just };
+};
+
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     posClé: posClé, parseClé: parseClé,
@@ -502,5 +605,6 @@ if (typeof module !== "undefined" && module.exports) {
     MAX_CELLULES_CSP: MAX_CELLULES_CSP, MAX_SOLUTIONS_CSP: MAX_SOLUTIONS_CSP,
     analyser: analyser, probabilitésExactes: probabilitésExactes,
     uniformiser: uniformiser, comb: comb, casesCachées: casesCachées,
+    SolveurClassique: SolveurClassique,
   };
 }
