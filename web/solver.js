@@ -16,9 +16,9 @@ function parseClé(clé) {
 
 function triClés(a, b) {
   var p = parseClé(a), q = parseClé(b);
-  return (p[1] - q[1]) || (p[0] - q[0]);
+  return (p[0] - q[0]) || (p[1] - q[1]);
 }
-function compareXY(a, b) { return (a[1] - b[1]) || (a[0] - b[0]); }
+function compareXY(a, b) { return (a[0] - b[0]) || (a[1] - b[1]); }
 
 function voisinsVue(vue, x, y) {
   var out = [];
@@ -92,7 +92,8 @@ function déduire(contraintes) {
       parClé[k] = { cells: new Set(c.cells), count: c.count };
     }
   });
-  var bornes = Object.keys(travail).length * (Object.keys(travail).length + 1) + 1;
+  var nContraintes = Object.keys(travail).length;
+  var bornes = nContraintes * (nContraintes + 1) + 1;
   for (var tour = 0; tour < bornes; tour++) {
     var nouvelles = false;
     /* R04 : réduction par les mines connues */
@@ -103,7 +104,7 @@ function déduire(contraintes) {
       if (réduites.size > 0) {
         var k2 = cléContrainte(réduites, réduit);
         if (!(k2 in travail)) {
-          travail[k2] = "R04: mines connues retranchées [" + travail[k] + "]";
+          travail[k2] = "R04: mines connues retranchées [de " + travail[k] + "]";
           parClé[k2] = { cells: réduites, count: réduit };
           nouvelles = true;
         }
@@ -277,7 +278,8 @@ function classer(cellules, solutions) {
   return { toujours: toujours, jamais: jamais };
 }
 
-/* C(n, k) exact (0 hors domaine). */
+/* C(n, k) exact (0 hors domaine). Exact sous 2^53 ; au-delà, erreur
+ * relative ~1e-14, sans effet sur les seuils de décision (1e-9). */
 function comb(n, k) {
   if (k < 0 || k > n) return 0;
   var r = 1;
@@ -380,9 +382,11 @@ function probabilitésExactes(vue, comps) {
 
 /* Analyse complète (équivalent Python analyze). Sortie :
  * { safe, mines, probabilities, components, constraints, exact }. */
-function analyser(vue) {
-  var contraintes = extraireContraintes(vue);
-  var d = déduire(contraintes);
+function analyser(vue, contraintesPrécalculées, déductionPrécalculée) {
+  var contraintes = contraintesPrécalculées !== undefined
+    ? contraintesPrécalculées : extraireContraintes(vue);
+  var d = déductionPrécalculée !== undefined
+    ? déductionPrécalculée : déduire(contraintes);
   var résultat = {
     safe: d.safe,
     mines: d.mines,
@@ -438,7 +442,8 @@ function analyser(vue) {
       });
       compsData.push({ cells: cellules, solutions: sols });
     } catch (e) {
-      if (e.name === "ComponentTooLarge") {
+      if (e.name !== "ComponentTooLarge") throw e;  /* R12 : propagé, traité par décider() */
+      {
         /* R17 : repli — sous-contraintes (classification exacte), uniforme sinon */
         résultat.exact = false;
         découper(groupe, MAX_CELLULES_CSP).forEach(function (sous) {
@@ -469,10 +474,6 @@ function analyser(vue) {
             });
           } catch (e2) { /* plafond encore dépassé : règles R02-R04 seules */ }
         });
-      } else if (e.name === "ConfigurationImpossible") {
-        throw e; /* R12 : propagé, traité par décider() */
-      } else {
-        throw e;
       }
     }
   });
@@ -541,7 +542,7 @@ SolveurClassique.prototype.décider = function (vue) {
     var sûrs = Object.keys(d.safe);
     var minés = Object.keys(d.mines);
     if (sûrs.length === 0 && minés.length === 0) {
-      a = analyser(vue);
+      a = analyser(vue, contraintes, d);
       if (a.exact) {
         cachées.forEach(function (p) {
           if (!(p in a.safe) && a.probabilities[p] < 1e-9) {
@@ -587,15 +588,15 @@ SolveurClassique.prototype.décider = function (vue) {
   /* R09 : guess — probabilité minimale, voisins révélés, intérieur, (y,x) */
   var probas = a !== null ? a.probabilities : uniformiser(vue);
   var exact = a !== null && a.exact;
+  var cléGuess = function (pos2, xy2) {
+    return [Math.round((probas[pos2] === undefined ? 1 : probas[pos2]) * 1e9),
+            -nbVoisinsÉtat(vue, xy2[0], xy2[1], "revealed"),
+            pénalitéBord(vue, xy2[0], xy2[1]), xy2[1], xy2[0]];
+  };
   var posG = cachées.reduce(function (meilleur, p) {
     if (meilleur === null) return p;
-    var xy = parseClé(p), myx = parseClé(meilleur);
-    var clé = function (pos2, xy2) {
-      return [Math.round((probas[pos2] === undefined ? 1 : probas[pos2]) * 1e9),
-              -nbVoisinsÉtat(vue, xy2[0], xy2[1], "revealed"),
-              pénalitéBord(vue, xy2[0], xy2[1]), xy2[1], xy2[0]];
-    };
-    var ca = clé(p, xy), cb = clé(meilleur, myx);
+    var xy = parseClé(p), mxy = parseClé(meilleur);
+    var ca = cléGuess(p, xy), cb = cléGuess(meilleur, mxy);
     for (var i = 0; i < ca.length; i++) {
       if (ca[i] !== cb[i]) return ca[i] < cb[i] ? p : meilleur;
     }

@@ -320,7 +320,7 @@ class TestConformitéJS(unittest.TestCase):
         self.assertIn("1", sortie)
 
     def test_tri_numérique_sorties(self):
-        # "10,0" doit venir après "2,0" (tri numérique, pas lexicographique).
+        # "10,0" doit venir après "2,0" ; ordre (x,y) comme sorted() Python.
         fixture = vue_fixture({(3, 0): 1, (5, 0): 1, (7, 0): 1, (9, 0): 1},
                               width=11, height=1, mines=1)
         sortie = node_exec(
@@ -332,6 +332,16 @@ class TestConformitéJS(unittest.TestCase):
         )
         self.assertIn("[[2,0],[4,0],[6,0],[8,0],[10,0]]", sortie)
         self.assertIn("[[2,0],[4,0]]", sortie)
+        # cas 2D : ordre (x,y) comme sorted() Python — (0,2) avant (1,0)
+        fixture2 = vue_fixture({(1, 1): 1}, width=3, height=3, mines=1)
+        sortie2 = node_exec(
+            "const S = " + SOLVER + ";\n"
+            "const a = S.analyser(@fixture:vue);\n"
+            "console.log(JSON.stringify(a.components[0].cells));",
+            {"vue": fixture2},
+        )
+        self.assertIn("[[0,0],[0,1],[0,2],[1,0],[1,2],[2,0],[2,1],[2,2]]",
+                      sortie2)
 
     def test_exact_false_sans_case_cachée(self):
         # Python (classic_solver.py:141-142) : probabilités vides -> exact=False.
@@ -343,6 +353,90 @@ class TestConformitéJS(unittest.TestCase):
             {"vue": fixture},
         )
         self.assertIn("false 0", sortie)
+
+
+@unittest.skipUnless(NODE, "node non disponible")
+class TestRevueQualitéJS(unittest.TestCase):
+    """Passe qualité finale lot B : précalculs réutilisés, e2e R17 et R12."""
+
+    def test_analyser_réutilise_précalculs(self):
+        # analyser(vue, contraintes, déduction) doit consommer la déduction
+        # passée (comme analyze_from Python) au lieu de recalculer.
+        fixture = vue_fixture({(1, 0): 1}, width=3, height=1, mines=1)
+        sortie = node_exec(
+            "const S = " + SOLVER + ";\n"
+            "const c = S.extraireContraintes(@fixture:vue);\n"
+            "const a = S.analyser(@fixture:vue, c,"
+            "                    {safe: {'9,9': 'TEST: sûr'}, mines: {}});\n"
+            "console.log(a.safe['9,9'] || 'absent');",
+            {"vue": fixture},
+        )
+        self.assertIn("TEST: sûr", sortie)
+
+    def test_analyser_précalculs_cohérents(self):
+        # Précalculs passés = même résultat que le calcul interne.
+        fixture = vue_fixture({(1, 0): 1}, width=3, height=1, mines=1)
+        sortie = node_exec(
+            "const S = " + SOLVER + ";\n"
+            "const c = S.extraireContraintes(@fixture:vue);\n"
+            "const a1 = S.analyser(@fixture:vue);\n"
+            "const a2 = S.analyser(@fixture:vue, c, S.déduire(c));\n"
+            "console.log(JSON.stringify(a1) === JSON.stringify(a2));",
+            {"vue": fixture},
+        )
+        self.assertIn("true", sortie)
+
+    def test_r17_repli_bout_en_bout(self):
+        # Frontière alternée 1-2 (comme test_regressions.grande_vue) :
+        # composante > 30 cases -> repli R17, analyse non exacte,
+        # probabilités uniformes, justification R17.
+        numbers = {(x, 0): (1 if x % 2 == 0 else 2) for x in range(1, 39)}
+        fixture = vue_fixture(numbers, width=40, height=2, mines=30)
+        sortie = node_exec(
+            "const S = " + SOLVER + ";\n"
+            "const a = S.analyser(@fixture:vue);\n"
+            "const d = new S.SolveurClassique().décider(@fixture:vue);\n"
+            "let uniforme = true, p0 = a.probabilities['0,1'];\n"
+            "Object.keys(a.probabilities).forEach(function (k) {\n"
+            "  if (Math.abs(a.probabilities[k] - p0) > 1e-12) uniforme = false;\n"
+            "});\n"
+            "console.log(a.exact, uniforme,"
+            "            d.justification.indexOf('R17') >= 0);",
+            {"vue": fixture},
+        )
+        self.assertIn("false true true", sortie)
+
+    def test_r17_guess_uniforme_bout_en_bout(self):
+        # Frontière tout-à-1 : le repli R17 ne classe rien -> guess uniforme.
+        numbers = {(x, 0): 1 for x in range(1, 39)}
+        fixture = vue_fixture(numbers, width=40, height=2, mines=30)
+        sortie = node_exec(
+            "const S = " + SOLVER + ";\n"
+            "const d = new S.SolveurClassique().décider(@fixture:vue);\n"
+            "console.log(d.action.kind,"
+            "            d.justification.indexOf('R17: guess uniforme') === 0);",
+            {"vue": fixture},
+        )
+        self.assertIn("reveal true", sortie)
+
+    def test_r12_giveup_via_décider(self):
+        # Triangle {a,b}:1 {b,c}:1 {c,a}:1 : les règles ne déduisent rien,
+        # le CSP est insatisfiable -> giveup R12 (fail-fast).
+        fixture = vue_fixture({(0, 0): 2, (2, 0): 2, (1, 2): 4},
+                              flags={(1, 1), (0, 2), (2, 2)},
+                              width=3, height=3, mines=3)
+        sortie = node_exec(
+            "const S = " + SOLVER + ";\n"
+            "const r = S.déduire(S.extraireContraintes(@fixture:vue));\n"
+            "const d = new S.SolveurClassique().décider(@fixture:vue);\n"
+            "console.log(Object.keys(r.safe).length +"
+            "                Object.keys(r.mines).length, d.action.kind,"
+            "            d.action.reason.indexOf('configuration impossible') >= 0,"
+            "            d.justification.indexOf('R12: configuration impossible')"
+            "                === 0);",
+            {"vue": fixture},
+        )
+        self.assertIn("0 giveup true true", sortie)
 
 
 if __name__ == "__main__":
