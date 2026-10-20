@@ -148,9 +148,134 @@ function déduire(contraintes) {
   return { safe: safe, mines: mines };
 }
 
+/* Plafonds R17/R18 (identiques au backend Python). */
+var MAX_CELLULES_CSP = 30;
+var MAX_SOLUTIONS_CSP = 100000;
+
+function ComponentTooLarge(message) {
+  var e = new Error(message);
+  e.name = "ComponentTooLarge";
+  return e;
+}
+function ConfigurationImpossible(message) {
+  var e = new Error(message);
+  e.name = "ConfigurationImpossible";
+  return e;
+}
+
+/* R05 : composantes connexes (cases partagées). */
+function composantes(contraintes) {
+  var comps = [];
+  var restantes = contraintes.slice();
+  while (restantes.length > 0) {
+    var graine = restantes.shift();
+    var groupe = [graine];
+    var cellules = new Set(graine.cells);
+    var croissance = true;
+    while (croissance) {
+      croissance = false;
+      for (var i = restantes.length - 1; i >= 0; i--) {
+        var c = restantes[i];
+        var partage = false;
+        cellules.forEach(function (p) { if (c.cells.has(p)) partage = true; });
+        if (partage) {
+          c.cells.forEach(function (p) { cellules.add(p); });
+          groupe.push(c);
+          restantes.splice(i, 1);
+          croissance = true;
+        }
+      }
+    }
+    comps.push(groupe);
+  }
+  return comps;
+}
+
+/* R05 : énumération exacte par DFS avec élagage ; lève ComponentTooLarge
+ * (repli R17) ou ConfigurationImpossible (R12). */
+function énumérer(cellules, contraintes, maxCells, maxSolutions) {
+  maxCells = maxCells === undefined ? MAX_CELLULES_CSP : maxCells;
+  maxSolutions = maxSolutions === undefined ? MAX_SOLUTIONS_CSP : maxSolutions;
+  if (cellules.length > maxCells) {
+    throw ComponentTooLarge("composante de " + cellules.length +
+                            " cases > plafond " + maxCells);
+  }
+  var index = {};
+  cellules.forEach(function (clé) { index[clé] = []; });
+  contraintes.forEach(function (c, i) {
+    c.cells.forEach(function (clé) { index[clé].push(i); });
+  });
+  var minesPosées = contraintes.map(function () { return 0; });
+  var restantesDans = contraintes.map(function (c) { return c.cells.size; });
+  var solutions = [];
+  var minesCourantes = [];
+
+  function poserPossible(clé) {
+    for (var t = 0; t < index[clé].length; t++) {
+      var i = index[clé][t];
+      var posées = minesPosées[i] + 1;
+      var restantes = restantesDans[i] - 1;
+      if (posées > contraintes[i].count ||
+          contraintes[i].count - posées > restantes) return false;
+    }
+    return true;
+  }
+  function laisserPossible(clé) {
+    for (var t = 0; t < index[clé].length; t++) {
+      var i = index[clé][t];
+      if (contraintes[i].count - minesPosées[i] > restantesDans[i] - 1) {
+        return false;
+      }
+    }
+    return true;
+  }
+  function explorer(i) {
+    if (solutions.length > maxSolutions) {
+      throw ComponentTooLarge("plus de " + maxSolutions + " solutions");
+    }
+    if (i === cellules.length) {
+      solutions.push(new Set(minesCourantes));
+      return;
+    }
+    var clé = cellules[i];
+    if (poserPossible(clé)) {
+      minesCourantes.push(clé);
+      index[clé].forEach(function (j) { minesPosées[j]++; restantesDans[j]--; });
+      explorer(i + 1);
+      minesCourantes.pop();
+      index[clé].forEach(function (j) { minesPosées[j]--; restantesDans[j]++; });
+    }
+    if (laisserPossible(clé)) {
+      index[clé].forEach(function (j) { restantesDans[j]--; });
+      explorer(i + 1);
+      index[clé].forEach(function (j) { restantesDans[j]++; });
+    }
+  }
+  explorer(0);
+  if (solutions.length === 0) {
+    throw ConfigurationImpossible("aucune solution au CSP de la composante");
+  }
+  return solutions;
+}
+
+/* R06 : classification toujours-mine / jamais-mine. */
+function classer(cellules, solutions) {
+  var toujours = new Set(cellules);
+  var jamais = new Set(cellules);
+  solutions.forEach(function (sol) {
+    cellules.forEach(function (p) {
+      if (!sol.has(p)) toujours.delete(p);
+      if (sol.has(p)) jamais.delete(p);
+    });
+  });
+  return { toujours: toujours, jamais: jamais };
+}
+
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     posClé: posClé, parseClé: parseClé,
     extraireContraintes: extraireContraintes, déduire: déduire,
+    composantes: composantes, énumérer: énumérer, classer: classer,
+    MAX_CELLULES_CSP: MAX_CELLULES_CSP, MAX_SOLUTIONS_CSP: MAX_SOLUTIONS_CSP,
   };
 }

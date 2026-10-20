@@ -98,5 +98,56 @@ class TestReglesJS(unittest.TestCase):
         self.assertIn("0", sortie)
 
 
+@unittest.skipUnless(NODE, "node non disponible")
+class TestCspJS(unittest.TestCase):
+    def test_composantes(self):
+        sortie = node_exec(
+            "const S = " + SOLVER + ";\n"
+            "const c1 = {cells: new Set(['0,0','0,1']), count: 1};\n"
+            "const c2 = {cells: new Set(['0,1','0,2']), count: 1};\n"
+            "const c3 = {cells: new Set(['5,5','6,5']), count: 1};\n"
+            "console.log(S.composantes([c1, c2, c3]).length);"
+        )
+        self.assertIn("2", sortie)
+
+    def test_énumération_2_solutions(self):
+        sortie = node_exec(
+            "const S = " + SOLVER + ";\n"
+            "const c = [{cells: new Set(['0,0','1,0']), count: 1}];\n"
+            "console.log(S.énumérer(['0,0','1,0'], c).length);"
+        )
+        self.assertIn("2", sortie)
+
+    def test_classification(self):
+        sortie = node_exec(
+            "const S = " + SOLVER + ";\n"
+            "const r = S.classer(['0,0','1,0'], [new Set(['0,0'])]);\n"
+            "console.log(Array.from(r.toujours).join(','),"
+            "            Array.from(r.jamais).join(','));"
+        )
+        self.assertIn("0,0 1,0", sortie)
+
+    def test_plafond_cellules(self):
+        sortie = node_exec(
+            "const S = " + SOLVER + ";\n"
+            "const cellules = [];\n"
+            "for (let i = 0; i < 40; i++) cellules.push(i + ',0');\n"
+            "const c = [{cells: new Set(cellules), count: 20}];\n"
+            "try { S.énumérer(cellules, c); console.log('pas-derreur'); }\n"
+            "catch (e) { console.log(e.name); }"
+        )
+        self.assertIn("ComponentTooLarge", sortie)
+
+    def test_configuration_impossible(self):
+        sortie = node_exec(
+            "const S = " + SOLVER + ";\n"
+            "const c = [{cells: new Set(['0,0','1,0']), count: 2},\n"
+            "           {cells: new Set(['0,0','1,0']), count: 1}];\n"
+            "try { S.énumérer(['0,0','1,0'], c); console.log('pas-derreur'); }\n"
+            "catch (e) { console.log(e.name); }"
+        )
+        self.assertIn("ConfigurationImpossible", sortie)
+
+
 if __name__ == "__main__":
     unittest.main()
